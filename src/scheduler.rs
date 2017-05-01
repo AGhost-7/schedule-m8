@@ -37,7 +37,7 @@ impl Scheduler {
                 handler.check_to_send();
                 // Since reads are so efficient this seems to be
                 // an ok sleep time.
-                thread::sleep(Duration::from_millis(10));
+                thread::sleep(Duration::from_millis(100));
             }
         });
         (tx, trigger_rx)
