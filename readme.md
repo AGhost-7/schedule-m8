@@ -7,6 +7,12 @@ local development the microservice takes too much memory. I also
 noticed that it is very slow to start up and shut down. This replaces
 the http service with something that makes more sense for developing.
 
+## Usage (docker)
+Here's an example drop-in replacement for quartz-http:
+```
+docker run --rm -e SCHEDULE_M8_BIND_ADDR='0.0.0.0:8090' aghost7/schedule-m8
+```
+
 ## API
 The api only currently supports submitting a callback. You cannot
 cancel a scheduled job.
