@@ -10,7 +10,7 @@ the http service with something that makes more sense for developing.
 ## Usage (docker)
 Here's an example drop-in replacement for quartz-http:
 ```
-docker run --rm -e SCHEDULE_M8_BIND_ADDR='0.0.0.0:8090' aghost7/schedule-m8
+docker run --rm -p 8090:8090 -e SCHEDULE_M8_BIND_ADDR='0.0.0.0:8090' aghost7/schedule-m8
 ```
 
 ## API
