@@ -9,7 +9,7 @@ use std::vec::Vec;
 use std::sync::mpsc::{channel, Sender, Receiver, TryRecvError};
 use std::thread;
 use callback::Callback;
-use std::time::{Instant, Duration};
+use std::time::{UNIX_EPOCH, Duration, SystemTime};
 
 pub struct Scheduler {
     rx: Receiver<Callback>,
@@ -33,7 +33,7 @@ impl Scheduler {
         let mut handler = Scheduler::new(trigger_tx, rx);
         thread::spawn(move|| {
             loop {
-                handler.check_sent();
+                handler.check_received();
                 handler.check_to_send();
                 // Since reads are so efficient this seems to be
                 // an ok sleep time.
@@ -43,24 +43,26 @@ impl Scheduler {
         (tx, trigger_rx)
     }
 
-    pub fn check_sent(&mut self) {
-        match self.rx.try_recv() {
-            Ok(callback) => {
-                println!("Added callback");
-                self.elems.push(callback);
-                self.elems.sort();
-            },
-            Err(TryRecvError::Empty) => {
-                //println!("No callback to add");
-            },
-            Err(_) => {
-                println!("Disconnected");
-                panic!();
+    pub fn check_received(&mut self) {
+        loop {
+            match self.rx.try_recv() {
+                Ok(callback) => {
+                    println!("Added callback");
+                    self.elems.push(callback);
+                    self.elems.sort();
+                },
+                Err(TryRecvError::Empty) => {
+                    return;
+                },
+                Err(_) => {
+                    println!("Thread event bus disconnected");
+                    panic!();
+                }
             }
         }
     }
 
-    fn should_pop(&self, now: &Instant) -> bool {
+    fn should_pop(&self, now: &Duration) -> bool {
         match self.elems.last() {
             Some(elem) => elem.timestamp.lt(now) || elem.timestamp.eq(now),
             None => false
@@ -68,7 +70,7 @@ impl Scheduler {
     }
 
     pub fn check_to_send(&mut self) {
-        let now = Instant::now();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         while self.should_pop(&now) {
             let elem = self.elems.pop().unwrap();
             self.tx.send(elem).unwrap();
@@ -78,25 +80,29 @@ impl Scheduler {
 
 #[test]
 fn scheduling_callback() {
-    use std::thread;
+    use uuid::Uuid;
 
     let (tx, rx) = Scheduler::spawn();
-    let now = Instant::now();
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+
     tx.send(Callback {
         url: "1".to_owned(),
         body: "{}".to_owned(),
-        timestamp: now + Duration::from_millis(100)
-    });
-    tx.send(Callback {
-        url: "2".to_owned(),
-        body: "{}".to_owned(),
-        timestamp: now + Duration::from_millis(200)
-    });
+        timestamp: now + Duration::from_millis(100),
+        uuid: Uuid::new_v4()
+    }).unwrap();
     tx.send(Callback {
         url: "3".to_owned(),
         body: "{}".to_owned(),
-        timestamp: now + Duration::from_millis(300)
-    });
+        timestamp: now + Duration::from_millis(300),
+        uuid: Uuid::new_v4()
+    }).unwrap();
+    tx.send(Callback {
+        url: "2".to_owned(),
+        body: "{}".to_owned(),
+        timestamp: now + Duration::from_millis(200),
+        uuid: Uuid::new_v4()
+    }).unwrap();
 
     for i in ["1", "2", "3"].iter() {
         let res = rx.recv().unwrap();

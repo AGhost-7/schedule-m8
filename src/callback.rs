@@ -1,12 +1,19 @@
 
 use std::cmp::{Ord, Ordering};
-use std::time::{Instant};
+use std::time::{Duration};
+use uuid::Uuid;
 
+// This type is the internal structure used by the scheduler.
 #[derive(Eq, Clone, Debug)]
 pub struct Callback {
     pub url: String,
     pub body: String,
-    pub timestamp: Instant
+    pub timestamp: Duration,
+    pub uuid: Uuid
+}
+
+pub trait Schedulable {
+    fn to_schedulable(self) -> Callback;
 }
 
 impl Ord for Callback {
@@ -27,3 +34,21 @@ impl PartialEq for Callback {
     }
 }
 
+// Data format for the v1 api.
+#[derive(Deserialize, Serialize)]
+pub struct V1Callback {
+    pub timestamp: u64,
+    pub url: String,
+    pub payload: String
+}
+
+impl Schedulable for V1Callback {
+    fn to_schedulable(self) -> Callback {
+        Callback {
+            url: self.url,
+            body: self.payload,
+            timestamp: Duration::from_millis(self.timestamp),
+            uuid: Uuid::new_v4()
+        }
+    }
+}

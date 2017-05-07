@@ -8,3 +8,4 @@ hyper = '*'
 serde_derive = '*'
 serde = '*'
 serde_json = '*'
+uuid = { version = '*', features = ['serde', 'v4'] }
