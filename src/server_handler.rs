@@ -62,6 +62,9 @@ impl Handler for ServerHandler {
         match req.uri.clone() {
             hyper::uri::RequestUri::AbsolutePath(url) => {
                 match (&req.method, &*url) {
+                    (&hyper::Post, "/scheduler/api") => {
+                        self.v1_post(&mut req, res);
+                    },
                     (&hyper::Post, "/api/v1/schedule") => {
                         self.v1_post(&mut req, res);
                     },

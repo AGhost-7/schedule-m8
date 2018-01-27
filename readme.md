@@ -34,6 +34,9 @@ Where:
 is to send to request back.
 - `url` is the address to send the request to.
 
+### POST->/scheduler/api
+Alias to `/api/v1/schedule`.
+
 ## Future development
 Queue persistence is probably next on the list. Likely to use leveldb
 to achieve this.

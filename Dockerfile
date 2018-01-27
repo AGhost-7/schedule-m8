@@ -1,4 +1,4 @@
-FROM ubuntu:trusty
+FROM ubuntu:xenial
 
 COPY ./target/release/schedule-m8 /usr/local/bin/schedule-m8
 
