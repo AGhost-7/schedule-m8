@@ -16,8 +16,8 @@ macro_rules! send_json {
     ($res:ident, $js:tt) => {
         {
             let response_body = json!($js);
-            let serialized = serde_json::to_vec(&response_body).unwrap();
-            $res.send(&serialized).unwrap();
+            let serialized = serde_json::to_vec(&response_body).expect("Serialization error.");
+            $res.send(&serialized).expect("IO Error sending response body.");
         }
     }
 }
@@ -39,7 +39,12 @@ impl ServerHandler {
             Ok(parsed) => {
                 let schedulable = parsed.to_schedulable();
                 let key = "http::".to_owned() + &schedulable.uuid.simple().to_string();
-                self.tx.lock().unwrap().send(schedulable).unwrap();
+                self
+                    .tx
+                    .lock()
+                    .expect("Channel mutex has been poisoned")
+                    .send(schedulable)
+                    .expect("Failed to send message to scheduler - channel disconnected");
                 *res.status_mut() = hyper::Ok;
                 send_json!(res, {
                     "key": key

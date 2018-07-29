@@ -70,10 +70,10 @@ impl Scheduler {
     }
 
     pub fn check_to_send(&mut self) {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).expect("Error getting system time");
         while self.should_pop(&now) {
             let elem = self.elems.pop().unwrap();
-            self.tx.send(elem).unwrap();
+            self.tx.send(elem).expect("Scheduler channel disconnected.");
         }
     }
 }
