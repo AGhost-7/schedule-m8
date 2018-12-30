@@ -50,6 +50,7 @@ fn main() {
         .unwrap_or("0.0.0.0:8001".to_owned());
     let (tx, rx) = Scheduler::spawn();
     spawn_callback_sender(rx);
+    println!("Listening on {}", bind);
     Server::http(&bind)
         .unwrap()
         .handle(ServerHandler::new(tx))
