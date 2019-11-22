@@ -1,20 +1,14 @@
 
-// Callback queue has constant time lookup to see if there
-// is a callback to send or not. This is important as we
-// will be checking very often (every couple millisecs).
-//
-// O(log n) for insertions (worst case) due to sorting.
-
-use std::vec::Vec;
 use std::sync::mpsc::{channel, Sender, Receiver, TryRecvError};
 use std::thread;
 use callback::Callback;
 use std::time::{UNIX_EPOCH, Duration, SystemTime};
+use std::collections::BinaryHeap;
 
 pub struct Scheduler {
     rx: Receiver<Callback>,
     tx: Sender<Callback>,
-    elems: Vec<Callback>
+    elems: BinaryHeap<Callback>
 }
 
 impl Scheduler {
@@ -23,7 +17,7 @@ impl Scheduler {
         Scheduler {
             rx: rx,
             tx: tx,
-            elems: Vec::new()
+            elems: BinaryHeap::new()
         }
     }
 
@@ -49,7 +43,6 @@ impl Scheduler {
                 Ok(callback) => {
                     println!("Added callback");
                     self.elems.push(callback);
-                    self.elems.sort();
                 },
                 Err(TryRecvError::Empty) => {
                     return;
@@ -63,7 +56,7 @@ impl Scheduler {
     }
 
     fn should_pop(&self, now: &Duration) -> bool {
-        match self.elems.last() {
+        match self.elems.peek() {
             Some(elem) => elem.timestamp.lt(now) || elem.timestamp.eq(now),
             None => false
         }
