@@ -103,3 +103,26 @@ fn scheduling_callback() {
         assert!(&res.url == i);
     }
 }
+
+#[test]
+fn scheduling_duplicates() {
+
+    use uuid::Uuid;
+
+    let (tx, rx) = Scheduler::spawn();
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+
+    tx.send(Callback {
+        url: "1".to_owned(),
+        body: "{}".to_owned(),
+        timestamp: now + Duration::from_millis(100),
+        uuid: Uuid::new_v4()
+    }).unwrap();
+    tx.send(Callback {
+        url: "1".to_owned(),
+        body: "{}".to_owned(),
+        timestamp: now + Duration::from_millis(100),
+        uuid: Uuid::new_v4()
+    }).unwrap();
+
+}

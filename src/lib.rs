@@ -5,6 +5,8 @@ extern crate serde_json;
 extern crate uuid;
 
 extern crate hyper;
+
+extern crate sled;
 use std::sync::mpsc::Receiver;
 use std::thread;
 
@@ -19,6 +21,7 @@ use callback::*;
 mod scheduler;
 use scheduler::Scheduler;
 
+mod store;
 
 mod server_handler;
 use server_handler::ServerHandler;
