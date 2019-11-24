@@ -5,6 +5,8 @@ authors = ["'AGhost-7' <'jonathan.boudreau.92@gmail.com'>"]
 
 [dependencies]
 sled = '*'
+priority-queue = '*'
+rmp-serde = '*'
 hyper = '*'
 serde_derive = '*'
 serde = '*'

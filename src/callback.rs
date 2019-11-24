@@ -1,10 +1,12 @@
 
+use std::hash::{Hasher, Hash};
 use std::cmp::{Ord, Ordering};
 use std::time::{Duration};
 use uuid::Uuid;
+use serde::{Serialize, Deserialize};
 
 // This type is the internal structure used by the scheduler.
-#[derive(Eq, Clone, Debug)]
+#[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Callback {
     pub url: String,
     pub body: String,
@@ -31,6 +33,12 @@ impl PartialOrd for Callback {
 impl PartialEq for Callback {
     fn eq(&self, other: &Callback) -> bool {
         self.timestamp == other.timestamp
+    }
+}
+
+impl Hash for Callback {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.uuid.hash(state);
     }
 }
 
