@@ -12,13 +12,13 @@ extern crate priority_queue;
 extern crate rmp_serde;
 
 use std::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use hyper::server::Server;
 use hyper::client::Client;
 use hyper::mime;
 use hyper::header;
-use std::path::Path;
 
 mod callback;
 use callback::*;
@@ -54,7 +54,7 @@ fn spawn_callback_sender(rx: Receiver<Callback>) {
 }
 
 pub fn create_server(bind: &str, db_path: &str) -> hyper::server::Listening {
-    let store = Store::open(db_path).unwrap();
+    let store = Arc::new(Mutex::new(Store::open(db_path).unwrap()));
     let (tx, rx) = Scheduler::spawn(store);
     spawn_callback_sender(rx);
     Server::http(bind)

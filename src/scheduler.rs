@@ -4,16 +4,17 @@ use std::thread;
 use callback::Callback;
 use std::time::{UNIX_EPOCH, Duration, SystemTime};
 use crate::store::Store;
+use std::sync::{Mutex,Arc};
 
 pub struct Scheduler {
     rx: Receiver<Callback>,
     tx: Sender<Callback>,
-    store: Store
+    store: Arc<Mutex<Store>>
 }
 
 impl Scheduler {
 
-    pub fn new(store: Store, tx: Sender<Callback>, rx: Receiver<Callback>) -> Scheduler {
+    pub fn new(store: Arc<Mutex<Store>>, tx: Sender<Callback>, rx: Receiver<Callback>) -> Scheduler {
         Scheduler {
             rx: rx,
             tx: tx,
@@ -21,7 +22,7 @@ impl Scheduler {
         }
     }
 
-    pub fn spawn(store: Store) -> (Sender<Callback>, Receiver<Callback>) {
+    pub fn spawn(store: Arc<Mutex<Store>>) -> (Sender<Callback>, Receiver<Callback>) {
         let (tx, rx) = channel::<Callback>();
         let (trigger_tx, trigger_rx) = channel::<Callback>();
         let mut handler = Scheduler::new(store, trigger_tx, rx);
@@ -29,9 +30,7 @@ impl Scheduler {
             loop {
                 handler.check_received();
                 handler.check_to_send();
-                // Since reads are so efficient this seems to be
-                // an ok sleep time.
-                thread::sleep(Duration::from_millis(100));
+                thread::sleep(Duration::from_millis(1000));
             }
         });
         (tx, trigger_rx)
@@ -41,32 +40,31 @@ impl Scheduler {
         loop {
             match self.rx.try_recv() {
                 Ok(callback) => {
-                    println!("Added callback");
-                    self.store.push(callback);
+                    let mut store = self.store.lock().expect("Failed to acquire store lock due to poisoning");
+                    store.push(callback);
                 },
                 Err(TryRecvError::Empty) => {
                     return;
                 },
                 Err(_) => {
-                    println!("Thread event bus disconnected");
                     panic!();
                 }
             }
         }
     }
 
-    fn should_pop(&self, now: &Duration) -> bool {
-        match self.store.peek() {
-            Some(elem) => elem.timestamp.lt(now) || elem.timestamp.eq(now),
-            None => false
-        }
-    }
-
     pub fn check_to_send(&mut self) {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).expect("Error getting system time");
-        while self.should_pop(&now) {
-            let elem = self.store.pop().unwrap();
-            self.tx.send(elem).expect("Scheduler channel disconnected.");
+        let mut store = self.store.lock().expect("Failed to acquire store lock due to poisoning");
+        loop {
+            if let Some(item) = store.peek() {
+                if item.timestamp.lt(&now) || item.timestamp.eq(&now) {
+                    let elem = store.pop().unwrap();
+                    self.tx.send(elem).expect("Scheduler channel disconnected.");
+                    continue;
+                }
+            }
+            break
         }
     }
 }
@@ -76,7 +74,8 @@ fn scheduling_callback() {
     use uuid::Uuid;
 
     let mut store = Store::open(".test/data").expect("Failed to open store");
-    let (tx, rx) = Scheduler::spawn(store);
+    store.clear();
+    let (tx, rx) = Scheduler::spawn(Arc::new(Mutex::new(store)));
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
 
     tx.send(Callback {
@@ -100,7 +99,6 @@ fn scheduling_callback() {
 
     for i in ["1", "2", "3"].iter() {
         let res = rx.recv().unwrap();
-        println!("Got url {}", res.url);
         assert!(&res.url == i);
     }
 }
@@ -111,7 +109,8 @@ fn scheduling_duplicates() {
     use uuid::Uuid;
 
     let mut store = Store::open(".test/data").expect("Failed to open store");
-    let (tx, rx) = Scheduler::spawn(store);
+    store.clear();
+    let (tx, rx) = Scheduler::spawn(Arc::new(Mutex::new(store)));
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
 
     tx.send(Callback {
@@ -126,5 +125,24 @@ fn scheduling_duplicates() {
         timestamp: now + Duration::from_millis(100),
         uuid: Uuid::new_v4()
     }).unwrap();
+}
 
+#[test]
+fn shared_store() {
+    use uuid::Uuid;
+
+    let mut store = Store::open(".test/data").expect("Failed to open store");
+    store.clear();
+    let mutex = Arc::new(Mutex::new(store));
+    let (tx, rx) = Scheduler::spawn(mutex.clone());
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    {
+        mutex.lock().unwrap().push(Callback {
+            url: "http://jokes.jonathan-boudreau.com".to_owned(),
+            body: "{}".to_owned(),
+            timestamp: now + Duration::from_millis(100),
+            uuid: Uuid::new_v4()
+        });
+    }
+    let message = rx.recv().unwrap();
 }
