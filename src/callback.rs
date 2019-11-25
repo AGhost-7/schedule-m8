@@ -43,7 +43,7 @@ impl Hash for Callback {
 }
 
 // Data format for the v1 api.
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct V1Callback {
     pub timestamp: u64,
     pub url: String,

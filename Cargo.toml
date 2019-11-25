@@ -7,7 +7,9 @@ authors = ["'AGhost-7' <'jonathan.boudreau.92@gmail.com'>"]
 sled = '*'
 priority-queue = '*'
 rmp-serde = '*'
-hyper = '0.10'
+warp = '0.1'
+hyper = '0.12'
+futures = { version = "0.3", features = ["compat"] }
 serde_derive = '*'
 serde = '*'
 serde_json = '*'

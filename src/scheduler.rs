@@ -47,7 +47,7 @@ impl Scheduler {
                     return;
                 },
                 Err(_) => {
-                    panic!();
+                    panic!("Thread channel disconnected");
                 }
             }
         }
