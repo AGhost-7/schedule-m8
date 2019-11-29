@@ -1,148 +1,85 @@
 
-use std::sync::mpsc::{channel, Sender, Receiver, TryRecvError};
-use std::thread;
-use callback::Callback;
+use crate::callback::Callback;
 use std::time::{UNIX_EPOCH, Duration, SystemTime};
 use crate::store::Store;
 use std::sync::{Mutex,Arc};
 
+use futures::channel::oneshot;
+
+use hyper::{Client, Method, header, Request};
+
 pub struct Scheduler {
-    rx: Receiver<Callback>,
-    tx: Sender<Callback>,
-    store: Arc<Mutex<Store>>
+    stop_sender: oneshot::Sender<()>
 }
 
 impl Scheduler {
-
-    pub fn new(store: Arc<Mutex<Store>>, tx: Sender<Callback>, rx: Receiver<Callback>) -> Scheduler {
-        Scheduler {
-            rx: rx,
-            tx: tx,
-            store: store
-        }
-    }
-
-    pub fn spawn(store: Arc<Mutex<Store>>) -> (Sender<Callback>, Receiver<Callback>) {
-        let (tx, rx) = channel::<Callback>();
-        let (trigger_tx, trigger_rx) = channel::<Callback>();
-        let mut handler = Scheduler::new(store, trigger_tx, rx);
-        thread::spawn(move|| {
+    pub fn start(store_mutex: Arc<Mutex<Store>>) -> Scheduler {
+        let (sender, mut receiver) = futures::channel::oneshot::channel::<()>();
+        let mut interval = tokio_timer::Interval::new_interval(Duration::from_millis(500));
+        let scheduler = Scheduler {
+            stop_sender: sender
+        };
+        hyper::rt::spawn(async move {
             loop {
-                handler.check_received();
-                handler.check_to_send();
-                thread::sleep(Duration::from_millis(1000));
+                interval.next().await;
+                match receiver.try_recv() {
+                    Err(_) => panic!("Scheduler shutdown handler cancelled"),
+                    Ok(Some(())) => break,
+                    Ok(None) => {}
+                }
+                Scheduler::send_ready(&store_mutex).await;
             }
         });
-        (tx, trigger_rx)
+
+        scheduler
     }
 
-    pub fn check_received(&mut self) {
+    pub fn stop(self) {
+        self.stop_sender.send(()).unwrap();
+    }
+
+    fn pop_next(store_mutex: &Arc<Mutex<Store>>) -> Option<Callback> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Error getting system time");
+        let mut store = store_mutex
+            .lock()
+            .expect("Failed to acquire store lock due to poisoning");
+        if let Some(item) = store.peek() {
+            if item.timestamp.lt(&now) || item.timestamp.eq(&now) {
+                return store.pop()
+            }
+        }
+        return None
+    }
+
+    async fn send_ready(store_mutex: &Arc<Mutex<Store>>) {
         loop {
-            match self.rx.try_recv() {
-                Ok(callback) => {
-                    let mut store = self.store.lock().expect("Failed to acquire store lock due to poisoning");
-                    store.push(callback);
-                },
-                Err(TryRecvError::Empty) => {
-                    return;
-                },
-                Err(_) => {
-                    panic!("Thread channel disconnected");
-                }
+            let next = Scheduler::pop_next(store_mutex);
+            match next {
+                Some(item) => Scheduler::send_callback(item).await,
+                None => break
             }
         }
     }
 
-    pub fn check_to_send(&mut self) {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).expect("Error getting system time");
-        let mut store = self.store.lock().expect("Failed to acquire store lock due to poisoning");
-        loop {
-            if let Some(item) = store.peek() {
-                if item.timestamp.lt(&now) || item.timestamp.eq(&now) {
-                    let elem = store.pop().unwrap();
-                    self.tx.send(elem).expect("Scheduler channel disconnected.");
-                    continue;
-                }
-            }
-            break
+    async fn send_callback(callback: Callback) {
+        let uri: hyper::Uri = callback.url.parse().expect("Invalid callback url");
+        let mut request = Request::new(hyper::Body::from(callback.body));
+
+        *request.method_mut() = Method::POST;
+        *request.uri_mut() = uri;
+        request.headers_mut().insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("application/json")
+        );
+
+        let client = Client::new();
+
+        let result = client.request(request).await;
+
+        if let Err(e) = result {
+            eprintln!("Failed to send callback {}", e);
         }
     }
-}
-
-#[test]
-fn scheduling_callback() {
-    use uuid::Uuid;
-
-    let mut store = Store::open(".test/data").expect("Failed to open store");
-    store.clear();
-    let (tx, rx) = Scheduler::spawn(Arc::new(Mutex::new(store)));
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-
-    tx.send(Callback {
-        url: "1".to_owned(),
-        body: "{}".to_owned(),
-        timestamp: now + Duration::from_millis(100),
-        uuid: Uuid::new_v4()
-    }).unwrap();
-    tx.send(Callback {
-        url: "3".to_owned(),
-        body: "{}".to_owned(),
-        timestamp: now + Duration::from_millis(300),
-        uuid: Uuid::new_v4()
-    }).unwrap();
-    tx.send(Callback {
-        url: "2".to_owned(),
-        body: "{}".to_owned(),
-        timestamp: now + Duration::from_millis(200),
-        uuid: Uuid::new_v4()
-    }).unwrap();
-
-    for i in ["1", "2", "3"].iter() {
-        let res = rx.recv().unwrap();
-        assert!(&res.url == i);
-    }
-}
-
-#[test]
-fn scheduling_duplicates() {
-
-    use uuid::Uuid;
-
-    let mut store = Store::open(".test/data").expect("Failed to open store");
-    store.clear();
-    let (tx, rx) = Scheduler::spawn(Arc::new(Mutex::new(store)));
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-
-    tx.send(Callback {
-        url: "1".to_owned(),
-        body: "{}".to_owned(),
-        timestamp: now + Duration::from_millis(100),
-        uuid: Uuid::new_v4()
-    }).unwrap();
-    tx.send(Callback {
-        url: "1".to_owned(),
-        body: "{}".to_owned(),
-        timestamp: now + Duration::from_millis(100),
-        uuid: Uuid::new_v4()
-    }).unwrap();
-}
-
-#[test]
-fn shared_store() {
-    use uuid::Uuid;
-
-    let mut store = Store::open(".test/data").expect("Failed to open store");
-    store.clear();
-    let mutex = Arc::new(Mutex::new(store));
-    let (tx, rx) = Scheduler::spawn(mutex.clone());
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-    {
-        mutex.lock().unwrap().push(Callback {
-            url: "http://jokes.jonathan-boudreau.com".to_owned(),
-            body: "{}".to_owned(),
-            timestamp: now + Duration::from_millis(100),
-            uuid: Uuid::new_v4()
-        });
-    }
-    let message = rx.recv().unwrap();
 }

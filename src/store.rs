@@ -36,7 +36,7 @@ impl Store {
 
     pub fn pop(&mut self) -> Option<Callback> {
         self.queue.pop().map(|(item, _)| {
-            self.tree.remove(&item.uuid.as_bytes()).unwrap();
+            self.tree.remove(&item.uuid.as_bytes()).expect("Failed to remove item from tree");
             item
         })
     }

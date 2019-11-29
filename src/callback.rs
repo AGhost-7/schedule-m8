@@ -14,10 +14,6 @@ pub struct Callback {
     pub uuid: Uuid
 }
 
-pub trait Schedulable {
-    fn to_schedulable(self) -> Callback;
-}
-
 impl Ord for Callback {
     fn cmp(&self, other: &Callback) -> Ordering {
         other.timestamp.cmp(&self.timestamp)
@@ -50,12 +46,12 @@ pub struct V1Callback {
     pub payload: String
 }
 
-impl Schedulable for V1Callback {
-    fn to_schedulable(self) -> Callback {
+impl From<V1Callback> for Callback {
+    fn from(v1: V1Callback) -> Callback {
         Callback {
-            url: self.url,
-            body: self.payload,
-            timestamp: Duration::from_millis(self.timestamp),
+            timestamp: Duration::from_millis(v1.timestamp),
+            url: v1.url,
+            body: v1.payload,
             uuid: Uuid::new_v4()
         }
     }
