@@ -53,6 +53,14 @@ async fn handle_request(
         .filter(|part| !part.is_empty())
         .collect();
     match (request.method(), parts.as_slice()) {
+        (&Method::POST, ["scheduler", "api", "cron"]) => {
+            println!("POST -> /scheduler/api/cron");
+            Ok(Response::new(Body::from("{}")))
+        },
+        (&Method::DELETE, ["scheduler", "api", "cron", id]) => {
+            println!("DELETE -> /scheduler/api/cron/{}", id);
+            Ok(Response::new(Body::from("{}")))
+        },
         (&Method::POST, ["scheduler", "api"]) => {
             println!("POST -> /scheduler/api");
             let body = request.into_body().try_concat().await?;
