@@ -83,13 +83,15 @@ async fn handle_request(
                     .remove(&Uuid::parse_str(id)?);
             Ok(Response::new(Body::from("{}")))
         },
-        _ =>
+        (method, parts) => {
+            println!("{} -> {}: NOT_FOUND", method, parts.join("/"));
             Ok(
                 Response::builder()
                     .status(StatusCode::NOT_FOUND)
                     .header("Content-Type", "application/json")
                     .body(Body::from("{}"))
                     .unwrap())
+        }
     }
 }
 
