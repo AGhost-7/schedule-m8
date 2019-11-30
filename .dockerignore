@@ -1,0 +1,4 @@
+/target/debug
+/target/rls
+/.git
+/.test
