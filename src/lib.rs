@@ -10,6 +10,7 @@ extern crate rmp_serde;
 extern crate hyper;
 extern crate tokio_timer;
 extern crate futures;
+extern crate cron;
 
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -25,13 +26,13 @@ use hyper::{
 };
 
 use futures::{
-    Future,
-    future::{Shared, FutureExt},
-    channel::oneshot,
-    stream::{TryStreamExt, StreamExt}
+    stream::TryStreamExt
 };
 
+use uuid::Uuid;
+
 pub mod callback;
+use crate::callback::*;
 
 mod scheduler;
 use scheduler::Scheduler;
@@ -54,15 +55,26 @@ async fn handle_request(
     match (request.method(), parts.as_slice()) {
         (&Method::POST, ["scheduler", "api"]) => {
             println!("POST -> /scheduler/api");
-            //use hyper::Chunk;
-            //let body = request.into_body().concat().await;
-            //let callback: V1Callback = serde_json::from_str(&body)?;
-            Ok(Response::new(Body::from("{}")))
+            let body = request.into_body().try_concat().await?;
+            let str_body = String::from_utf8(body.to_vec())?;
+            let v1_callback: V1Callback = serde_json::from_str(&str_body)?;
+            let callback = Callback::from(v1_callback);
+            let key = V1CallbackKey::new(callback.uuid);
+
+            store_mutex
+                .lock()
+                .expect("Failed to acquire lock")
+                .push(callback);
+            Ok(Response::new(Body::from(serde_json::to_string(&key)?)))
         },
         (&Method::DELETE, ["scheduler", "api", id]) => {
             println!("DELETE -> /scheduler/api/{}", id);
+            store_mutex
+                    .lock()
+                    .expect("Failed to acquire lock on storage")
+                    .remove(&Uuid::parse_str(id)?);
             Ok(Response::new(Body::from("{}")))
-        }
+        },
         _ =>
             Ok(
                 Response::builder()
@@ -72,67 +84,6 @@ async fn handle_request(
                     .unwrap())
     }
 }
-
-//pub struct ScheduleM8 {
-//    store_mutex: Arc<Mutex<Store>>,
-//    scheduler: Scheduler,
-//    server_shutdown_channel: oneshot::Sender<()>,
-//    wait_handle: Box<dyn Future<Output = ()>>
-//}
-//
-//fn print_type<T>(_: &T) {
-//    println!("Type is: {}", std::any::type_name::<T>());
-//}
-//
-//impl ScheduleM8 {
-//    pub fn start(bind: String, db_path: String) -> ScheduleM8 {
-//        let address: SocketAddr = bind.parse().unwrap();
-//        let store_mutex = Arc::new(Mutex::new(
-//                Store::open(&db_path).expect("Failed to open store"))
-//        );
-//        let scheduler = Scheduler::start(store_mutex.clone());
-//        let (sender, receiver) = futures::channel::oneshot::channel::<()>();
-//        let hyper_store = store_mutex.clone();
-//        let service = make_service_fn(move |_| {
-//            let service_store = store_mutex.clone();
-//            async {
-//                Ok::<_, GenericError>(
-//                    service_fn(move |request| {
-//                        handle_request(service_store.clone(), request)
-//                    })
-//                )
-//            }
-//        });
-//
-//        let server = Server::bind(&address).serve(service);
-//
-//        let wait_handle = async {
-//            let graceful = server.with_graceful_shutdown(async {
-//                receiver.await.ok();
-//            });
-//            graceful.await.unwrap();
-//        };
-//        print_type(&wait_handle);
-//        ScheduleM8 {
-//            store_mutex,
-//            scheduler,
-//            server_shutdown_channel: sender,
-//            wait_handle: Box::new(wait_handle)
-//        }
-//    }
-//
-//    pub fn stop(self) {
-//        self.scheduler.stop();
-//        self.server_shutdown_channel.send(()).unwrap();
-//    }
-//
-//    //pub async fn wait(&self) {
-//    //    self.wait_handle.await;
-//    //}
-//    //pub fn wait(&self) -> Box<dyn Future<Output = ()>> {
-//    //    self.wait_handle.clone()
-//    //}
-//}
 
 pub async fn create_server(bind: String, db_path: String) {
     println!("Opening store at location: {}", db_path);

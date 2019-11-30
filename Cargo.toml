@@ -8,7 +8,7 @@ edition = "2018"
 sled = '*'
 priority-queue = '*'
 rmp-serde = '*'
-hyper = { git = 'https://github.com/hyperium/hyper',  branch = 'master' }
+hyper = { git = 'https://github.com/hyperium/hyper',  branch = 'master', features = ["unstable-stream"] }
 #, default-features = false, features = ['tcp'] }
 futures = { version = "0.3", features = ["compat"] }
 
@@ -18,4 +18,6 @@ tokio-timer = '=0.3.0-alpha.6'
 serde_derive = '*'
 serde = '*'
 serde_json = '*'
+cron = '*'
+chrono = '*'
 uuid = { version = '*', features = ['serde', 'v4'] }

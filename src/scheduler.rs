@@ -3,6 +3,9 @@ use crate::callback::Callback;
 use std::time::{UNIX_EPOCH, Duration, SystemTime};
 use crate::store::Store;
 use std::sync::{Mutex,Arc};
+use std::str::FromStr;
+use cron::Schedule;
+use chrono::Utc;
 
 use futures::channel::oneshot;
 
@@ -57,7 +60,28 @@ impl Scheduler {
         loop {
             let next = Scheduler::pop_next(store_mutex);
             match next {
-                Some(item) => Scheduler::send_callback(item).await,
+                Some(item) => {
+                    if let Some(schedule) = &item.schedule {
+                        let mut store = store_mutex
+                            .lock()
+                            .expect("Failed to acquire store lock due to poisoning");
+                        let timestamp = Schedule::from_str(schedule)
+                            .unwrap()
+                            .upcoming(Utc)
+                            .next()
+                            .unwrap()
+                            .timestamp();
+                        let callback = Callback {
+                            timestamp: Duration::from_millis(timestamp as u64),
+                            url: item.url.clone(),
+                            body: item.body.clone(),
+                            uuid: item.uuid.clone(),
+                            schedule: Some(schedule.to_owned())
+                        };
+                        store.push(callback);
+                    }
+                    Scheduler::send_callback(item).await;
+                },
                 None => break
             }
         }
