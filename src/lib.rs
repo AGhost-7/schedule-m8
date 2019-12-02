@@ -86,10 +86,20 @@ async fn handle_request(
         },
         (&Method::DELETE, ["scheduler", "api", id]) => {
             println!("DELETE -> /scheduler/api/{}", id);
+            let parsed = Uuid::parse_str(id);
+            if parsed.is_err() {
+                return Ok(
+                    Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .body(Body::from("{}"))
+                        .unwrap()
+                )
+            }
             let removed = store_mutex
                     .lock()
                     .expect("Failed to acquire lock on storage")
-                    .remove(&Uuid::parse_str(id)?);
+                    .remove(&parsed?);
             match removed {
                 Some(_) => Ok(Response::new(Body::from("{}"))),
                 None =>

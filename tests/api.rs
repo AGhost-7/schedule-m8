@@ -170,7 +170,6 @@ test_case!(delete_triggered_callback {
     request = Request::new(
         Body::from("")
     );
-
     *request.uri_mut() = (
         "http://localhost:".to_owned() +
         &app_port.to_string() +
@@ -183,4 +182,18 @@ test_case!(delete_triggered_callback {
 
     let requests = requests.lock().unwrap();
     assert_eq!(requests.len(), 1);
+});
+
+test_case!(invalid_uuid {
+    let mut request = Request::new(
+        Body::from("")
+    );
+    *request.uri_mut() = (
+        "http://localhost:".to_owned() +
+        &app_port.to_string() +
+        "/scheduler/api/boom"
+    ).parse().unwrap();
+    *request.method_mut() = Method::DELETE;
+    let response = client.request(request).await.unwrap();
+    assert_eq!(response.status(), 400);
 });
