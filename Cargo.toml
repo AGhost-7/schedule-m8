@@ -9,12 +9,10 @@ sled = '*'
 priority-queue = '*'
 rmp-serde = '*'
 hyper = { git = 'https://github.com/hyperium/hyper',  branch = 'master', features = ["unstable-stream"] }
-#, default-features = false, features = ['tcp'] }
 futures = { version = "0.3", features = ["compat"] }
 
 tokio = '=0.2.0-alpha.6'
 tokio-timer = '=0.3.0-alpha.6'
-#tokio = { version = "0.2", features = ["time", "rt-core", "macros"] }
 serde_derive = '*'
 serde = '*'
 serde_json = '*'
@@ -24,3 +22,4 @@ uuid = { version = '*', features = ['serde', 'v4'] }
 
 [dev-dependencies]
 rand = '*'
+tokio-fs = '=0.2.0-alpha.6'

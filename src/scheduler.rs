@@ -38,7 +38,7 @@ impl Scheduler {
     }
 
     pub fn stop(self) {
-        self.stop_sender.send(()).unwrap();
+        self.stop_sender.send(()).expect("Failed to stop scheduler");
     }
 
     fn pop_next(store_mutex: &Arc<Mutex<Store>>) -> Option<Callback> {
@@ -66,10 +66,10 @@ impl Scheduler {
                             .lock()
                             .expect("Failed to acquire store lock due to poisoning");
                         let timestamp = Schedule::from_str(schedule)
-                            .unwrap()
+                            .expect("Invalid schedule")
                             .upcoming(Utc)
                             .next()
-                            .unwrap()
+                            .expect("Cannot find the next time for schedule")
                             .timestamp();
                         let callback = Callback {
                             timestamp: Duration::from_millis(timestamp as u64),
