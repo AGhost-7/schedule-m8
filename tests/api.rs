@@ -141,4 +141,46 @@ test_case!(cancel_callback {
 });
 
 test_case!(delete_triggered_callback {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+
+    let callback = V1Callback {
+        payload: "{}".to_owned(),
+        timestamp: (now + 1000) as u64,
+        url: "http://127.0.0.1:".to_owned() + &server_port.to_string() + "/test",
+    };
+
+
+    let mut request = Request::new(
+        Body::from(serde_json::to_string(&callback).unwrap())
+    );
+    *request.uri_mut() = (
+        "http://localhost:".to_owned() + &app_port.to_string() + "/scheduler/api"
+    ).parse().unwrap();
+    *request.method_mut() = Method::POST;
+    let response = client.request(request).await.unwrap();
+
+    let mut interval = tokio_timer::Interval::new_interval(Duration::from_millis(2000));
+    interval.next().await;
+
+
+    let body = response.into_body().try_concat().await.unwrap();
+    let str_body = String::from_utf8(body.to_vec()).unwrap();
+    let key: V1CallbackKey = serde_json::from_str(&str_body).unwrap();
+
+    request = Request::new(
+        Body::from("")
+    );
+
+    *request.uri_mut() = (
+        "http://localhost:".to_owned() +
+        &app_port.to_string() +
+        "/scheduler/api/" +
+        (&key.key.to_string())
+    ).parse().unwrap();
+    *request.method_mut() = Method::DELETE;
+    let response = client.request(request).await.unwrap();
+    assert_eq!(response.status(), 404);
+
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
 });

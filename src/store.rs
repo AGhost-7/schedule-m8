@@ -52,14 +52,18 @@ impl Store {
         self.tree.insert(uuid_bytes, buffer).unwrap();
     }
 
-    pub fn remove(&mut self, uuid: &Uuid) {
+    pub fn remove(&mut self, uuid: &Uuid) -> Option<Callback> {
         let serialized = self
             .tree
             .remove(uuid.as_bytes())
             .expect("Failed to remove callback from storage");
-        let item = rmp_serde::decode::from_slice(&serialized.unwrap()).unwrap();
-        self.queue.change_priority(&item, Duration::new(std::u64::MAX, 0));
-        self.queue.pop();
+
+        serialized.map(|data| {
+            let item = rmp_serde::decode::from_slice(&data).unwrap();
+            self.queue.change_priority(&item, Duration::new(std::u64::MAX, 0));
+            self.queue.pop();
+            item
+        })
     }
 
     pub fn clear(&mut self) {
@@ -71,7 +75,6 @@ impl Store {
 #[cfg(test)]
 mod test {
     use std::time::{UNIX_EPOCH, SystemTime, Duration};
-    use serde::{Serialize, Deserialize};
     use uuid::Uuid;
     use crate::callback::Callback;
     use super::*;

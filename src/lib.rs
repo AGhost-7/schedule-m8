@@ -86,11 +86,21 @@ async fn handle_request(
         },
         (&Method::DELETE, ["scheduler", "api", id]) => {
             println!("DELETE -> /scheduler/api/{}", id);
-            store_mutex
+            let removed = store_mutex
                     .lock()
                     .expect("Failed to acquire lock on storage")
                     .remove(&Uuid::parse_str(id)?);
-            Ok(Response::new(Body::from("{}")))
+            match removed {
+                Some(_) => Ok(Response::new(Body::from("{}"))),
+                None =>
+                    Ok(
+                        Response::builder()
+                            .status(StatusCode::NOT_FOUND)
+                            .header("Content-Type", "application/json")
+                            .body(Body::from("{}"))
+                            .unwrap()
+                    )
+            }
         },
         (method, parts) => {
             println!("{} -> {}: NOT_FOUND", method, parts.join("/"));
@@ -99,7 +109,8 @@ async fn handle_request(
                     .status(StatusCode::NOT_FOUND)
                     .header("Content-Type", "application/json")
                     .body(Body::from("{}"))
-                    .unwrap())
+                    .unwrap()
+            )
         }
     }
 }
