@@ -103,7 +103,7 @@ impl Scheduler {
         let result = client.request(request).await;
 
         if let Err(e) = result {
-            eprintln!("Failed to send callback {}", e);
+            eprintln!("{} - Failed to send callback: {}", callback.url, e);
         }
     }
 }

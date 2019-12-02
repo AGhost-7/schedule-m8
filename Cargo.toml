@@ -21,3 +21,6 @@ serde_json = '*'
 cron = '*'
 chrono = '*'
 uuid = { version = '*', features = ['serde', 'v4'] }
+
+[dev-dependencies]
+rand = '*'

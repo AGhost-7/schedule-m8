@@ -78,7 +78,7 @@ mod test {
 
     #[test]
     fn duplicates() {
-        let mut store = Store::open(".test/data").expect("Failed to open store");
+        let mut store = Store::open(".test/duplicates").expect("Failed to open store");
         store.clear();
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
 
@@ -86,19 +86,22 @@ mod test {
             url: "1".to_owned(),
             body: "{}".to_owned(),
             timestamp: now + Duration::from_millis(100),
-            uuid: Uuid::new_v4()
+            uuid: Uuid::new_v4(),
+            schedule: None
         });
         store.push(Callback {
             url: "2".to_owned(),
             body: "{}".to_owned(),
             timestamp: now + Duration::from_millis(200),
-            uuid: Uuid::new_v4()
+            uuid: Uuid::new_v4(),
+            schedule: None
         });
         store.push(Callback {
             url: "3".to_owned(),
             body: "{}".to_owned(),
             timestamp: now + Duration::from_millis(100),
-            uuid: Uuid::new_v4()
+            uuid: Uuid::new_v4(),
+            schedule: None
         });
 
         assert_eq!(store.pop().unwrap().url, "2");
@@ -108,7 +111,7 @@ mod test {
 
     #[test]
     fn remove() {
-        let mut store = Store::open(".test/data").expect("Failed to open store");
+        let mut store = Store::open(".test/remove").expect("Failed to open store");
         store.clear();
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let uuid = Uuid::new_v4();
@@ -116,14 +119,16 @@ mod test {
             url: "1".to_owned(),
             body: "{}".to_owned(),
             timestamp: now + Duration::from_millis(100),
-            uuid: uuid.clone()
+            uuid: uuid.clone(),
+            schedule: None
         });
 
         store.push(Callback {
             url: "2".to_owned(),
             body: "{}".to_owned(),
             timestamp: now + Duration::from_millis(100),
-            uuid: Uuid::new_v4()
+            uuid: Uuid::new_v4(),
+            schedule: None
         });
         assert!(store.peek().is_some());
         store.remove(&uuid);
@@ -134,18 +139,19 @@ mod test {
     #[test]
     fn resume() {
         {
-            let mut store = Store::open(".test/data").expect("Failed to open store");
+            let mut store = Store::open(".test/resume").expect("Failed to open store");
             store.clear();
             let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
             store.push(Callback {
                 url: "1".to_owned(),
                 body: "{}".to_owned(),
                 timestamp: now + Duration::from_millis(100),
-                uuid: Uuid::new_v4()
+                uuid: Uuid::new_v4(),
+                schedule: None
             });
         }
 
-        let mut store = Store::open(".test/data").expect("Failed to open store");
+        let mut store = Store::open(".test/resume").expect("Failed to open store");
         assert_eq!(store.pop().unwrap().url, "1");
         assert_eq!(store.pop(), None);
     }

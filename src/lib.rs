@@ -26,7 +26,8 @@ use hyper::{
 };
 
 use futures::{
-    stream::TryStreamExt
+    stream::TryStreamExt,
+    channel::oneshot
 };
 
 use uuid::Uuid;
@@ -59,6 +60,14 @@ async fn handle_request(
         },
         (&Method::DELETE, ["scheduler", "api", "cron", id]) => {
             println!("DELETE -> /scheduler/api/cron/{}", id);
+            Ok(Response::new(Body::from("{}")))
+        },
+        (&Method::DELETE, ["scheduler", "api"]) => {
+            println!("DELETE -> /scheduler/api");
+            store_mutex
+                    .lock()
+                    .expect("Failed to acquire lock on storage")
+                    .clear();
             Ok(Response::new(Body::from("{}")))
         },
         (&Method::POST, ["scheduler", "api"]) => {
@@ -95,23 +104,56 @@ async fn handle_request(
     }
 }
 
-pub async fn create_server(bind: String, db_path: String) {
-    println!("Opening store at location: {}", db_path);
-    let store_mutex = Arc::new(Mutex::new(Store::open(&db_path).expect("Failed to open store")));
-    let scheduler = Scheduler::start(store_mutex.clone());
+pub struct ScheduleM8 {
+    scheduler: Scheduler,
+    close_sender: oneshot::Sender<()>,
+    closed_receiver: oneshot::Receiver<()>
+}
 
-    let address: SocketAddr = bind.parse().unwrap();
+impl ScheduleM8 {
+    pub fn start(bind: String, db_path: String) -> ScheduleM8 {
+        println!("Opening store at location: {}", db_path);
+        let store_mutex = Arc::new(Mutex::new(Store::open(&db_path).expect("Failed to open store")));
+        let scheduler = Scheduler::start(store_mutex.clone());
 
-    let make_svc = make_service_fn(move |_| {
-        let service_store_mutex = store_mutex.clone();
-        async {
-            Ok::<_, GenericError>(service_fn(move |req| {
-                handle_request(service_store_mutex.clone(), req)
-            }))
+        let address: SocketAddr = bind.parse().unwrap();
+
+        let make_svc = make_service_fn(move |_| {
+            let service_store_mutex = store_mutex.clone();
+            async {
+                Ok::<_, GenericError>(service_fn(move |req| {
+                    handle_request(service_store_mutex.clone(), req)
+                }))
+            }
+        });
+
+        let server: Server<_,_> = Server::bind(&address).serve(make_svc);
+        let (close_sender, close_receiver) = oneshot::channel::<()>();
+        let (closed_sender, closed_receiver) = oneshot::channel::<()>();
+
+        hyper::rt::spawn(async {
+            server
+                .with_graceful_shutdown(async {
+                    close_receiver.await.ok();
+                })
+            .await
+                .unwrap();
+            closed_sender.send(()).unwrap();
+        });
+
+        ScheduleM8 {
+            scheduler,
+            close_sender,
+            closed_receiver
         }
-    });
+    }
 
-    let server: Server<_,_> = Server::bind(&address).serve(make_svc);
+    pub fn stop(self) {
+        self.scheduler.stop();
+        self.close_sender.send(()).unwrap();
+    }
 
-    server.await.unwrap();
+    pub async fn forever(self) {
+        self.closed_receiver.await.unwrap();
+    }
 }

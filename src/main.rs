@@ -1,9 +1,9 @@
 
 extern crate futures;
-extern crate hyper;
 
 extern crate tokio;
 
+use schedule_m8::ScheduleM8;
 use std::env;
 
 #[tokio::main]
@@ -14,5 +14,5 @@ async fn main() {
         .unwrap_or("/var/lib/schedule-m8/data".to_owned());
     println!("Listening on {}", bind);
 
-    schedule_m8::create_server(bind, db_path).await;   
+    ScheduleM8::start(bind, db_path).forever().await;
 }
