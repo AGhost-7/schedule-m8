@@ -43,10 +43,10 @@ use crate::store::Store;
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 
-async fn handle_request(
-        store_mutex: Arc<Mutex<Store>>,
-        request: Request<Body>
-        ) -> Result<Response<Body>, GenericError> {
+async fn request_routes(
+    store_mutex: Arc<Mutex<Store>>,
+    request: Request<Body>
+) -> Result<Response<Body>, GenericError> {
     let parts: Vec<&str> = request
         .uri()
         .path()
@@ -123,6 +123,23 @@ async fn handle_request(
             )
         }
     }
+}
+
+async fn handle_request(
+        store_mutex: Arc<Mutex<Store>>,
+        request: Request<Body>
+        ) -> Result<Response<Body>, GenericError> {
+    let result = request_routes(store_mutex, request).await;
+    result.or_else(|err| {
+        eprintln!("Error: {}", err);
+        Ok(
+            Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .header("Content-Type", "application/json")
+            .body(Body::from("{}"))
+            .unwrap()
+        )
+    })
 }
 
 pub struct ScheduleM8 {
