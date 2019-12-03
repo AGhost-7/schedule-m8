@@ -2,12 +2,12 @@ use sled::Db;
 use rmp_serde::Serializer;
 use uuid::Uuid;
 use priority_queue::PriorityQueue;
-use std::time::Duration;
 use crate::callback::Callback;
 use serde::Serialize;
+use std::time::{UNIX_EPOCH, Duration, SystemTime};
 
 pub struct Store {
-    queue: PriorityQueue<Callback, Duration>,
+    queue: PriorityQueue<Uuid, Duration>,
     tree: Db
 }
 
@@ -20,7 +20,7 @@ impl Store {
                 &serialized.expect("Failed to extract from store")
             ).expect("Failed to deserialize from store");
             let priority = item.timestamp.clone();
-            queue.push(item, priority);
+            queue.push(item.uuid.clone(), priority);
         }
         Ok(
             Store {
@@ -30,13 +30,33 @@ impl Store {
         )
     }
 
-    pub fn peek(&self) -> Option<&Callback> {
-        self.queue.peek().map(|(item, _)| item)
+    pub fn next(&mut self) -> Option<Callback> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Error getting system time");
+        let has_next = self
+            .queue
+            .peek()
+            .map(|(_, timestamp)| timestamp.lt(&now) || timestamp.eq(&now))
+            .unwrap_or(false);
+
+        if has_next {
+            self.pop()
+        } else {
+            None
+        }
     }
 
     pub fn pop(&mut self) -> Option<Callback> {
-        self.queue.pop().map(|(item, _)| {
-            self.tree.remove(&item.uuid.as_bytes()).expect("Failed to remove item from tree");
+        self.queue.pop().map(|(uuid, _)| {
+            let bytes = self.tree.remove(&uuid.as_bytes())
+                .expect("Failed to remove item from tree")
+                .expect("Item in queue does not exist in persistence layer");
+
+            let item: Callback = rmp_serde::decode::from_slice(&bytes)
+                .expect("Failed to deserialize from store");
+
+            self.tree.remove(&uuid.as_bytes()).expect("Failed to remove item from tree");
             item
         })
     }
@@ -48,7 +68,7 @@ impl Store {
         item
             .serialize(&mut Serializer::new(&mut buffer))
             .expect("Failed to serialize callback");
-        self.queue.push(item, priority);
+        self.queue.push(item.uuid, priority);
         self.tree.insert(uuid_bytes, buffer).unwrap();
     }
 
@@ -59,8 +79,8 @@ impl Store {
             .expect("Failed to remove callback from storage");
 
         serialized.map(|data| {
-            let item = rmp_serde::decode::from_slice(&data).unwrap();
-            self.queue.change_priority(&item, Duration::new(std::u64::MAX, 0));
+            let item: Callback = rmp_serde::decode::from_slice(&data).unwrap();
+            self.queue.change_priority(&item.uuid, Duration::new(std::u64::MAX, 0));
             self.queue.pop();
             item
         })
@@ -133,10 +153,9 @@ mod test {
             uuid: Uuid::new_v4(),
             schedule: None
         });
-        assert!(store.peek().is_some());
         store.remove(&uuid);
         assert_eq!(store.pop().unwrap().url, "2");
-        assert!(store.peek().is_none());
+        assert!(store.pop().is_none());
     }
 
     #[test]

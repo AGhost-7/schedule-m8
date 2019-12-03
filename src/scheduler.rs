@@ -1,6 +1,6 @@
 
 use crate::callback::Callback;
-use std::time::{UNIX_EPOCH, Duration, SystemTime};
+use std::time::Duration;
 use crate::store::Store;
 use std::sync::{Mutex,Arc};
 use std::str::FromStr;
@@ -42,18 +42,10 @@ impl Scheduler {
     }
 
     fn pop_next(store_mutex: &Arc<Mutex<Store>>) -> Option<Callback> {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Error getting system time");
-        let mut store = store_mutex
+        store_mutex
             .lock()
-            .expect("Failed to acquire store lock due to poisoning");
-        if let Some(item) = store.peek() {
-            if item.timestamp.lt(&now) || item.timestamp.eq(&now) {
-                return store.pop()
-            }
-        }
-        return None
+            .expect("Failed to acquire store lock due to poisoning")
+            .next()
     }
 
     async fn send_ready(store_mutex: &Arc<Mutex<Store>>) {
