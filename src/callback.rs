@@ -96,11 +96,12 @@ impl TryFrom<V1CronCallback> for Callback {
 
 impl From<V1Callback> for Callback {
     fn from(v1: V1Callback) -> Callback {
+        let uuid = Uuid::new_v4();
         Callback {
             timestamp: Duration::from_millis(v1.timestamp),
-            url: v1.url,
+            url: v1.url + "?key=" + &uuid.to_string(),
             body: v1.payload,
-            uuid: Uuid::new_v4(),
+            uuid,
             schedule: None
         }
     }

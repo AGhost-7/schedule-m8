@@ -88,11 +88,10 @@ impl Scheduler {
     }
 
     async fn send_callback(callback: Callback) {
-        let uri: hyper::Uri = callback.url.parse().expect("Invalid callback url");
         let mut request = Request::new(hyper::Body::from(callback.body));
 
         *request.method_mut() = Method::POST;
-        *request.uri_mut() = uri;
+        *request.uri_mut() = callback.url.parse().expect("Invalid callback url");
         request.headers_mut().insert(
             header::CONTENT_TYPE,
             header::HeaderValue::from_static("application/json")
