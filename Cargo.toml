@@ -1,6 +1,6 @@
 [package]
 name = "schedule-m8"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["'AGhost-7' <'jonathan.boudreau.92@gmail.com'>"]
 edition = "2018"
 
