@@ -7,6 +7,8 @@ use serde::{Serialize, Deserialize};
 use cron::Schedule;
 use chrono::Utc;
 use std::str::FromStr;
+use std::convert::TryFrom;
+use crate::error::AppError;
 
 // This type is the internal structure used by the scheduler.
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
@@ -14,7 +16,7 @@ pub struct Callback {
     pub url: String,
     pub body: String,
     pub timestamp: Duration,
-    pub uuid: Uuid,
+    pub id: String,
     pub schedule: Option<String>
 }
 
@@ -38,7 +40,7 @@ impl PartialEq for Callback {
 
 impl Hash for Callback {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.uuid.hash(state);
+        self.id.hash(state);
     }
 }
 
@@ -55,39 +57,35 @@ pub struct V1CronCallback {
     pub schedule: String,
     pub payload: String,
     pub name: String,
+    pub group: String,
     pub url: String
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct V1CallbackKey {
-    pub key: Uuid
+    pub key: String
 }
 
 impl V1CallbackKey {
-    pub fn new(key: Uuid) -> V1CallbackKey {
+    pub fn new(key: String) -> V1CallbackKey {
         V1CallbackKey { key }
     }
 }
 
-pub enum ConvertError {
-    ScheduleError
-}
-
-use std::convert::TryFrom;
-
 impl TryFrom<V1CronCallback> for Callback {
-    type Error = ConvertError;
-    fn try_from(v1: V1CronCallback) -> Result<Callback, ConvertError> {
+    type Error = AppError;
+    fn try_from(v1: V1CronCallback) -> Result<Callback, AppError> {
         let schedule = Schedule::from_str(&v1.schedule).map_err(|_|
-            ConvertError::ScheduleError
+            AppError::ValidationError
         )?;
+        let id = v1.group.clone() + "::_" + &v1.name;
         let timestamp = schedule.upcoming(Utc).next().unwrap().timestamp();
         Ok(
             Callback {
                 timestamp: Duration::from_millis(timestamp as u64),
                 url: v1.url,
                 body: v1.payload,
-                uuid: Uuid::new_v4(),
+                id,
                 schedule: Some(v1.schedule)
             }
         )
@@ -96,12 +94,12 @@ impl TryFrom<V1CronCallback> for Callback {
 
 impl From<V1Callback> for Callback {
     fn from(v1: V1Callback) -> Callback {
-        let uuid = Uuid::new_v4();
+        let id = Uuid::new_v4().to_string();
         Callback {
             timestamp: Duration::from_millis(v1.timestamp),
-            url: v1.url + "?key=" + &uuid.to_string(),
+            url: v1.url + "?key=" + &id,
             body: v1.payload,
-            uuid,
+            id,
             schedule: None
         }
     }

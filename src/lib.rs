@@ -30,7 +30,9 @@ use futures::{
     channel::oneshot
 };
 
-use uuid::Uuid;
+use std::convert::TryFrom;
+
+mod error;
 
 pub mod callback;
 use crate::callback::*;
@@ -56,10 +58,14 @@ async fn request_routes(
     match (request.method(), parts.as_slice()) {
         (&Method::POST, ["scheduler", "api", "cron"]) => {
             println!("POST -> /scheduler/api/cron");
-            Ok(Response::new(Body::from("{}")))
-        },
-        (&Method::DELETE, ["scheduler", "api", "cron", id]) => {
-            println!("DELETE -> /scheduler/api/cron/{}", id);
+            let body = request.into_body().try_concat().await?;
+            let str_body = String::from_utf8(body.to_vec())?;
+            let v1_callback: V1CronCallback = serde_json::from_str(&str_body)?;
+            let callback = Callback::try_from(v1_callback)?;
+            store_mutex
+                    .lock()
+                    .expect("Failed to acquire lock on storage")
+                    .push(callback);
             Ok(Response::new(Body::from("{}")))
         },
         (&Method::DELETE, ["scheduler", "api"]) => {
@@ -76,7 +82,7 @@ async fn request_routes(
             let str_body = String::from_utf8(body.to_vec())?;
             let v1_callback: V1Callback = serde_json::from_str(&str_body)?;
             let callback = Callback::from(v1_callback);
-            let key = V1CallbackKey::new(callback.uuid);
+            let key = V1CallbackKey::new(callback.id.clone());
 
             store_mutex
                 .lock()
@@ -86,20 +92,10 @@ async fn request_routes(
         },
         (&Method::DELETE, ["scheduler", "api", id]) => {
             println!("DELETE -> /scheduler/api/{}", id);
-            let parsed = Uuid::parse_str(id);
-            if parsed.is_err() {
-                return Ok(
-                    Response::builder()
-                        .status(StatusCode::BAD_REQUEST)
-                        .header("Content-Type", "application/json")
-                        .body(Body::from("{}"))
-                        .unwrap()
-                )
-            }
             let removed = store_mutex
                     .lock()
                     .expect("Failed to acquire lock on storage")
-                    .remove(&parsed?);
+                    .remove(&id);
             match removed {
                 Some(_) => Ok(Response::new(Body::from("{}"))),
                 None =>

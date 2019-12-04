@@ -1,13 +1,12 @@
 use sled::Db;
 use rmp_serde::Serializer;
-use uuid::Uuid;
 use priority_queue::PriorityQueue;
 use crate::callback::Callback;
 use serde::Serialize;
 use std::time::{UNIX_EPOCH, Duration, SystemTime};
 
 pub struct Store {
-    queue: PriorityQueue<Uuid, Duration>,
+    queue: PriorityQueue<String, Duration>,
     tree: Db
 }
 
@@ -20,7 +19,7 @@ impl Store {
                 &serialized.expect("Failed to extract from store")
             ).expect("Failed to deserialize from store");
             let priority = item.timestamp.clone();
-            queue.push(item.uuid.clone(), priority);
+            queue.push(item.id.clone(), priority);
         }
         Ok(
             Store {
@@ -63,24 +62,24 @@ impl Store {
 
     pub fn push(&mut self, item: Callback) {
         let priority = item.timestamp.clone();
-        let uuid_bytes = item.uuid.as_bytes().clone();
+        let id_bytes = item.id.as_bytes();
         let mut buffer = Vec::new();
         item
             .serialize(&mut Serializer::new(&mut buffer))
             .expect("Failed to serialize callback");
-        self.queue.push(item.uuid, priority);
-        self.tree.insert(uuid_bytes, buffer).unwrap();
+        self.queue.push(item.id.clone(), priority);
+        self.tree.insert(id_bytes, buffer).unwrap();
     }
 
-    pub fn remove(&mut self, uuid: &Uuid) -> Option<Callback> {
+    pub fn remove(&mut self, id: &str) -> Option<Callback> {
         let serialized = self
             .tree
-            .remove(uuid.as_bytes())
+            .remove(id.as_bytes())
             .expect("Failed to remove callback from storage");
 
         serialized.map(|data| {
             let item: Callback = rmp_serde::decode::from_slice(&data).unwrap();
-            self.queue.change_priority(&item.uuid, Duration::new(std::u64::MAX, 0));
+            self.queue.change_priority(&item.id, Duration::new(std::u64::MAX, 0));
             self.queue.pop();
             item
         })
@@ -109,21 +108,21 @@ mod test {
             url: "1".to_owned(),
             body: "{}".to_owned(),
             timestamp: now + Duration::from_millis(100),
-            uuid: Uuid::new_v4(),
+            id: Uuid::new_v4().to_string(),
             schedule: None
         });
         store.push(Callback {
             url: "2".to_owned(),
             body: "{}".to_owned(),
             timestamp: now + Duration::from_millis(200),
-            uuid: Uuid::new_v4(),
+            id: Uuid::new_v4().to_string(),
             schedule: None
         });
         store.push(Callback {
             url: "3".to_owned(),
             body: "{}".to_owned(),
             timestamp: now + Duration::from_millis(100),
-            uuid: Uuid::new_v4(),
+            id: Uuid::new_v4().to_string(),
             schedule: None
         });
 
@@ -137,12 +136,12 @@ mod test {
         let mut store = Store::open(".test/remove").expect("Failed to open store");
         store.clear();
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-        let uuid = Uuid::new_v4();
+        let id = Uuid::new_v4().to_string();
         store.push(Callback {
             url: "1".to_owned(),
             body: "{}".to_owned(),
             timestamp: now + Duration::from_millis(100),
-            uuid: uuid.clone(),
+            id: id.clone(),
             schedule: None
         });
 
@@ -150,10 +149,10 @@ mod test {
             url: "2".to_owned(),
             body: "{}".to_owned(),
             timestamp: now + Duration::from_millis(100),
-            uuid: Uuid::new_v4(),
+            id: Uuid::new_v4().to_string(),
             schedule: None
         });
-        store.remove(&uuid);
+        store.remove(&id);
         assert_eq!(store.pop().unwrap().url, "2");
         assert!(store.pop().is_none());
     }
@@ -168,7 +167,7 @@ mod test {
                 url: "1".to_owned(),
                 body: "{}".to_owned(),
                 timestamp: now + Duration::from_millis(100),
-                uuid: Uuid::new_v4(),
+                id: Uuid::new_v4().to_string(),
                 schedule: None
             });
         }

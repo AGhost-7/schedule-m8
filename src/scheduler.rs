@@ -67,7 +67,7 @@ impl Scheduler {
                             timestamp: Duration::from_millis(timestamp as u64),
                             url: item.url.clone(),
                             body: item.body.clone(),
-                            uuid: item.uuid.clone(),
+                            id: item.id.clone(),
                             schedule: Some(schedule.to_owned())
                         };
                         store.push(callback);

@@ -184,7 +184,7 @@ test_case!(delete_triggered_callback {
     assert_eq!(requests.len(), 1);
 });
 
-test_case!(invalid_uuid {
+test_case!(missing_id {
     let mut request = Request::new(
         Body::from("")
     );
@@ -195,5 +195,5 @@ test_case!(invalid_uuid {
     ).parse().unwrap();
     *request.method_mut() = Method::DELETE;
     let response = client.request(request).await.unwrap();
-    assert_eq!(response.status(), 400);
+    assert_eq!(response.status(), 404);
 });
