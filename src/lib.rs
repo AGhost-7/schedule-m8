@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate log;
 extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
@@ -57,7 +59,7 @@ async fn request_routes(
         .collect();
     match (request.method(), parts.as_slice()) {
         (&Method::POST, ["scheduler", "api", "cron"]) => {
-            println!("POST -> /scheduler/api/cron");
+            info!("POST -> /scheduler/api/cron");
             let body = request.into_body().try_concat().await?;
             let str_body = String::from_utf8(body.to_vec())?;
             let v1_callback: V1CronCallback = serde_json::from_str(&str_body)?;
@@ -69,7 +71,7 @@ async fn request_routes(
             Ok(Response::new(Body::from("{}")))
         },
         (&Method::DELETE, ["scheduler", "api"]) => {
-            println!("DELETE -> /scheduler/api");
+            info!("DELETE -> /scheduler/api");
             store_mutex
                     .lock()
                     .expect("Failed to acquire lock on storage")
@@ -77,7 +79,7 @@ async fn request_routes(
             Ok(Response::new(Body::from("{}")))
         },
         (&Method::POST, ["scheduler", "api"]) => {
-            println!("POST -> /scheduler/api");
+            info!("POST -> /scheduler/api");
             let body = request.into_body().try_concat().await?;
             let str_body = String::from_utf8(body.to_vec())?;
             let v1_callback: V1Callback = serde_json::from_str(&str_body)?;
@@ -91,7 +93,7 @@ async fn request_routes(
             Ok(Response::new(Body::from(serde_json::to_string(&key)?)))
         },
         (&Method::DELETE, ["scheduler", "api", id]) => {
-            println!("DELETE -> /scheduler/api/{}", id);
+            info!("DELETE -> /scheduler/api/{}", id);
             let removed = store_mutex
                     .lock()
                     .expect("Failed to acquire lock on storage")
@@ -109,7 +111,7 @@ async fn request_routes(
             }
         },
         (method, parts) => {
-            println!("{} -> {}: NOT_FOUND", method, parts.join("/"));
+            info!("{} -> {}: NOT_FOUND", method, parts.join("/"));
             Ok(
                 Response::builder()
                     .status(StatusCode::NOT_FOUND)
@@ -127,7 +129,7 @@ async fn handle_request(
         ) -> Result<Response<Body>, GenericError> {
     let result = request_routes(store_mutex, request).await;
     result.or_else(|err| {
-        eprintln!("Error: {}", err);
+        error!("Error: {}", err);
         Ok(
             Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -146,7 +148,7 @@ pub struct ScheduleM8 {
 
 impl ScheduleM8 {
     pub fn start(bind: String, db_path: String) -> ScheduleM8 {
-        println!("Opening store at location: {}", db_path);
+        info!("Opening store at location: {}", db_path);
         let store_mutex = Arc::new(Mutex::new(Store::open(&db_path).expect("Failed to open store")));
         let scheduler = Scheduler::start(store_mutex.clone());
 
