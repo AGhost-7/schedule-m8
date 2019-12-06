@@ -778,7 +778,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "schedule-m8"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "cron 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
