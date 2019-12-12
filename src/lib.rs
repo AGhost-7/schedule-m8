@@ -36,8 +36,8 @@ use std::convert::TryFrom;
 
 mod error;
 
-pub mod callback;
-use crate::callback::*;
+pub mod schema;
+use crate::schema::*;
 
 mod scheduler;
 use scheduler::Scheduler;
@@ -58,16 +58,17 @@ async fn request_routes(
         .filter(|part| !part.is_empty())
         .collect();
     match (request.method(), parts.as_slice()) {
+        // {{{ v1
         (&Method::POST, ["scheduler", "api", "cron"]) => {
             info!("POST -> /scheduler/api/cron");
             let body = request.into_body().try_concat().await?;
             let str_body = String::from_utf8(body.to_vec())?;
-            let v1_callback: V1CronCallback = serde_json::from_str(&str_body)?;
-            let callback = Callback::try_from(v1_callback)?;
+            let v1_job: V1CronJob = serde_json::from_str(&str_body)?;
+            let job = Job::try_from(v1_job)?;
             store_mutex
                     .lock()
                     .expect("Failed to acquire lock on storage")
-                    .push(callback);
+                    .push(job);
             Ok(Response::new(Body::from("{}")))
         },
         (&Method::DELETE, ["scheduler", "api"]) => {
@@ -82,14 +83,14 @@ async fn request_routes(
             info!("POST -> /scheduler/api");
             let body = request.into_body().try_concat().await?;
             let str_body = String::from_utf8(body.to_vec())?;
-            let v1_callback: V1Callback = serde_json::from_str(&str_body)?;
-            let callback = Callback::from(v1_callback);
-            let key = V1CallbackKey::new(callback.id.clone());
+            let v1_job: V1Job = serde_json::from_str(&str_body)?;
+            let job = Job::from(v1_job);
+            let key = V1JobKey::new(job.id.clone());
 
             store_mutex
                 .lock()
                 .expect("Failed to acquire lock")
-                .push(callback);
+                .push(job);
             Ok(Response::new(Body::from(serde_json::to_string(&key)?)))
         },
         (&Method::DELETE, ["scheduler", "api", id]) => {
@@ -110,6 +111,70 @@ async fn request_routes(
                     )
             }
         },
+        // }}}
+        // {{{ v2
+        (&Method::POST, ["api", "job"]) => {
+            info!("POST -> /api/job");
+            let body = request.into_body().try_concat().await?;
+            let str_body = String::from_utf8(body.to_vec())?;
+            let v2_job: V1Job = serde_json::from_str(&str_body)?;
+            let job = Job::from(v2_job);
+            let response = serde_json::to_string(&V2JobResponse::from(&job))?;
+            store_mutex
+                    .lock()
+                    .expect("Failed to acquire lock")
+                    .push(job);
+            Ok(Response::new(Body::from(response)))
+        },
+        (&Method::DELETE, ["api", "job"]) => {
+            info!("DELETE -> /scheduler/api");
+            store_mutex
+                    .lock()
+                    .expect("Failed to acquire lock on storage")
+                    .clear();
+            Ok(
+                Response::builder()
+                    .status(StatusCode::NO_CONTENT)
+                    .body(Body::from(""))
+                    .unwrap()
+            )
+        },
+        (&Method::DELETE, ["api", "job", id]) => {
+            info!("DELETE -> /api/job/{}", id);
+            let removed = store_mutex
+                    .lock()
+                    .expect("Failed to acquire lock on storage")
+                    .remove(&id);
+            match removed {
+                Some(_) => Ok(
+                    Response::builder()
+                        .status(StatusCode::NO_CONTENT)
+                        .body(Body::from(""))
+                        .unwrap()
+                ),
+                None =>
+                    Ok(
+                        Response::builder()
+                            .status(StatusCode::NOT_FOUND)
+                            .body(Body::from(""))
+                            .unwrap()
+                    )
+            }
+        },
+        (&Method::POST, ["api", "cron"]) => {
+            info!("POST -> /api/cron");
+            let body = request.into_body().try_concat().await?;
+            let str_body = String::from_utf8(body.to_vec())?;
+            let v2_job: V2CronJob = serde_json::from_str(&str_body)?;
+            let job = Job::try_from(v2_job)?;
+            let response = serde_json::to_string(&V2CronJobResponse::from(&job))?;
+            store_mutex
+                    .lock()
+                    .expect("Failed to acquire lock on storage")
+                    .push(job);
+            Ok(Response::new(Body::from(response)))
+        },
+        // }}}
         (method, parts) => {
             info!("{} -> {}: NOT_FOUND", method, parts.join("/"));
             Ok(

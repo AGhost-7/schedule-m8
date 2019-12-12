@@ -14,29 +14,58 @@ docker run --rm -p 8090:8090 -e SCHEDULE_M8_BIND_ADDR='0.0.0.0:8090' aghost7/sch
 ```
 
 ## API
-The api only currently supports submitting a callback. You cannot
-cancel a scheduled job.
 
-### POST->/api/v1/schedule
+### POST->/api/job
 Schedules a job. The message body's structure is the following:
 
 ```json
 {
-	"payload": "{}",
+	"method": "POST",
+	"body": "{}",
 	"timestamp": 1494183499406,
 	"url": "http://localhost:3000"
 }
 ```
 
 Where:
-- `payload` is the body of the response.
+- `method` is the http method to send the callback to.
+- `body` is the body of the response.
 - `timestamp` is the unix epoch in milliseconds of the time the scheduler
 is to send to request back.
 - `url` is the address to send the request to.
 
-### POST->/scheduler/api
-Alias to `/api/v1/schedule`.
+Returns:
+```json
+{
+	"method": "POST",
+	"body": "{}",
+	"timestamp": 1494183499406,
+	"url": "http://localhost:3000",
+	"id": "123-123-1234"
+}
+```
 
-## Future development
-Queue persistence is probably next on the list. Likely to use leveldb
-to achieve this.
+### POST -> /api/cron
+Schedule a cron job. The message's structure is the following:
+```json
+{
+	"method": "POST",
+	"body": "{}"
+	"timestamp": 1494183499406,
+	"schedule": "@daily"
+}
+```
+Where:
+- `method` is the http method to send the callback to.
+- `body` is the body of the response.
+- `schedule` is a cron expression. For more information, see the [cron][cron]
+crate.
+- `url` is the address to send the request to.
+
+[cron]: https://github.com/zslayton/cron
+
+### DELETE -> /api/job/:id
+Delete a job. Returns a 204 on success.
+
+### DELETE -> /api/job
+Delete all jobs.

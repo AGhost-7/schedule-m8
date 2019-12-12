@@ -7,7 +7,7 @@ extern crate serde_json;
 extern crate rand;
 extern crate futures;
 
-use schedule_m8::callback::*;
+use schedule_m8::schema::*;
 use schedule_m8::ScheduleM8;
 
 use hyper::{Client, Server, Body, Request, Response, Method};
@@ -77,7 +77,7 @@ macro_rules! test_case {
 
 test_case!(create_callback {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-    let callback = V1Callback {
+    let callback = V1Job {
         payload: "{}".to_owned(),
         timestamp: (now + 1000) as u64,
         url: "http://127.0.0.1:".to_owned() + &server_port.to_string() + "/test",
@@ -100,7 +100,7 @@ test_case!(create_callback {
 test_case!(cancel_callback {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
 
-    let callback = V1Callback {
+    let callback = V1Job {
         payload: "{}".to_owned(),
         timestamp: (now + 1000) as u64,
         url: "http://127.0.0.1:".to_owned() + &server_port.to_string() + "/test",
@@ -118,7 +118,7 @@ test_case!(cancel_callback {
 
     let body = response.into_body().try_concat().await.unwrap();
     let str_body = String::from_utf8(body.to_vec()).unwrap();
-    let key: V1CallbackKey = serde_json::from_str(&str_body).unwrap();
+    let key: V1JobKey = serde_json::from_str(&str_body).unwrap();
 
     request = Request::new(
         Body::from("")
@@ -143,7 +143,7 @@ test_case!(cancel_callback {
 test_case!(delete_triggered_callback {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
 
-    let callback = V1Callback {
+    let callback = V1Job {
         payload: "{}".to_owned(),
         timestamp: (now + 1000) as u64,
         url: "http://127.0.0.1:".to_owned() + &server_port.to_string() + "/test",
@@ -165,7 +165,7 @@ test_case!(delete_triggered_callback {
 
     let body = response.into_body().try_concat().await.unwrap();
     let str_body = String::from_utf8(body.to_vec()).unwrap();
-    let key: V1CallbackKey = serde_json::from_str(&str_body).unwrap();
+    let key: V1JobKey = serde_json::from_str(&str_body).unwrap();
 
     request = Request::new(
         Body::from("")

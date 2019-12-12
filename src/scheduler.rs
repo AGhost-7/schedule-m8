@@ -1,5 +1,5 @@
 
-use crate::callback::Callback;
+use crate::schema::Job;
 use std::time::Duration;
 use crate::store::Store;
 use std::sync::{Mutex,Arc};
@@ -41,7 +41,7 @@ impl Scheduler {
         self.stop_sender.send(()).expect("Failed to stop scheduler");
     }
 
-    fn pop_next(store_mutex: &Arc<Mutex<Store>>) -> Option<Callback> {
+    fn pop_next(store_mutex: &Arc<Mutex<Store>>) -> Option<Job> {
         store_mutex
             .lock()
             .expect("Failed to acquire store lock due to poisoning")
@@ -63,7 +63,8 @@ impl Scheduler {
                             .next()
                             .expect("Cannot find the next time for schedule")
                             .timestamp();
-                        let callback = Callback {
+                        let callback = Job {
+                            method: item.method.clone(),
                             timestamp: Duration::from_millis(timestamp as u64),
                             url: item.url.clone(),
                             body: item.body.clone(),
@@ -79,10 +80,11 @@ impl Scheduler {
         }
     }
 
-    async fn send_callback(callback: Callback) {
+    async fn send_callback(callback: Job) {
         let mut request = Request::new(hyper::Body::from(callback.body));
+        let method = &callback.method.as_bytes();
 
-        *request.method_mut() = Method::POST;
+        *request.method_mut() = Method::from_bytes(method).unwrap_or(Method::POST);
         *request.uri_mut() = callback.url.parse().expect("Invalid callback url");
         request.headers_mut().insert(
             header::CONTENT_TYPE,
