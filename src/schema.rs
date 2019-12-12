@@ -21,6 +21,8 @@ pub struct Job {
     pub schedule: Option<String>
 }
 
+include!(concat!(env!("OUT_DIR"), "/prost.job.rs"));
+
 impl Ord for Job {
     fn cmp(&self, other: &Job) -> Ordering {
         other.timestamp.cmp(&self.timestamp)
