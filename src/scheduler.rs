@@ -2,7 +2,7 @@
 use crate::schema::Job;
 use std::time::Duration;
 use crate::store::Store;
-use std::sync::{Mutex,Arc};
+use std::sync::Arc;
 use std::str::FromStr;
 use cron::Schedule;
 use chrono::Utc;
@@ -16,7 +16,7 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
-    pub fn start(store_mutex: Arc<Mutex<Store>>) -> Scheduler {
+    pub fn start(store: Arc<Store>) -> Scheduler {
         let (sender, mut receiver) = futures::channel::oneshot::channel::<()>();
         let mut interval = tokio_timer::Interval::new_interval(Duration::from_millis(500));
         let scheduler = Scheduler {
@@ -30,7 +30,7 @@ impl Scheduler {
                     Ok(Some(())) => break,
                     Ok(None) => {}
                 }
-                Scheduler::send_ready(&store_mutex).await;
+                Scheduler::send_ready(&store).await;
             }
         });
 
@@ -41,22 +41,12 @@ impl Scheduler {
         self.stop_sender.send(()).expect("Failed to stop scheduler");
     }
 
-    fn pop_next(store_mutex: &Arc<Mutex<Store>>) -> Option<Job> {
-        store_mutex
-            .lock()
-            .expect("Failed to acquire store lock due to poisoning")
-            .next()
-    }
-
-    async fn send_ready(store_mutex: &Arc<Mutex<Store>>) {
+    async fn send_ready(store: &Arc<Store>) {
         loop {
-            let next = Scheduler::pop_next(store_mutex);
+            let next = store.next();
             match next {
                 Some(item) => {
                     if let Some(schedule) = &item.schedule {
-                        let mut store = store_mutex
-                            .lock()
-                            .expect("Failed to acquire store lock due to poisoning");
                         let timestamp = Schedule::from_str(schedule)
                             .expect("Invalid schedule")
                             .upcoming(Utc)

@@ -15,7 +15,7 @@ extern crate futures;
 extern crate cron;
 
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use hyper::{
     body::Body,
@@ -48,7 +48,7 @@ use crate::store::Store;
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 
 async fn request_routes(
-    store_mutex: Arc<Mutex<Store>>,
+    store: Arc<Store>,
     request: Request<Body>
 ) -> Result<Response<Body>, GenericError> {
     let parts: Vec<&str> = request
@@ -65,18 +65,12 @@ async fn request_routes(
             let str_body = String::from_utf8(body.to_vec())?;
             let v1_job: V1CronJob = serde_json::from_str(&str_body)?;
             let job = Job::try_from(v1_job)?;
-            store_mutex
-                    .lock()
-                    .expect("Failed to acquire lock on storage")
-                    .push(job);
+            store.push(job);
             Ok(Response::new(Body::from("{}")))
         },
         (&Method::DELETE, ["scheduler", "api"]) => {
             info!("DELETE -> /scheduler/api");
-            store_mutex
-                    .lock()
-                    .expect("Failed to acquire lock on storage")
-                    .clear();
+            store.clear();
             Ok(Response::new(Body::from("{}")))
         },
         (&Method::POST, ["scheduler", "api"]) => {
@@ -87,18 +81,12 @@ async fn request_routes(
             let job = Job::from(v1_job);
             let key = V1JobKey::new(job.id.clone());
 
-            store_mutex
-                .lock()
-                .expect("Failed to acquire lock")
-                .push(job);
+            store.push(job);
             Ok(Response::new(Body::from(serde_json::to_string(&key)?)))
         },
         (&Method::DELETE, ["scheduler", "api", id]) => {
             info!("DELETE -> /scheduler/api/{}", id);
-            let removed = store_mutex
-                    .lock()
-                    .expect("Failed to acquire lock on storage")
-                    .remove(&id);
+            let removed = store.remove(&id);
             match removed {
                 Some(_) => Ok(Response::new(Body::from("{}"))),
                 None =>
@@ -120,18 +108,12 @@ async fn request_routes(
             let v2_job: V1Job = serde_json::from_str(&str_body)?;
             let job = Job::from(v2_job);
             let response = serde_json::to_string(&V2JobResponse::from(&job))?;
-            store_mutex
-                    .lock()
-                    .expect("Failed to acquire lock")
-                    .push(job);
+            store.push(job);
             Ok(Response::new(Body::from(response)))
         },
         (&Method::DELETE, ["api", "job"]) => {
             info!("DELETE -> /scheduler/api");
-            store_mutex
-                    .lock()
-                    .expect("Failed to acquire lock on storage")
-                    .clear();
+            store.clear();
             Ok(
                 Response::builder()
                     .status(StatusCode::NO_CONTENT)
@@ -141,10 +123,7 @@ async fn request_routes(
         },
         (&Method::DELETE, ["api", "job", id]) => {
             info!("DELETE -> /api/job/{}", id);
-            let removed = store_mutex
-                    .lock()
-                    .expect("Failed to acquire lock on storage")
-                    .remove(&id);
+            let removed = store.remove(&id);
             match removed {
                 Some(_) => Ok(
                     Response::builder()
@@ -168,10 +147,7 @@ async fn request_routes(
             let v2_job: V2CronJob = serde_json::from_str(&str_body)?;
             let job = Job::try_from(v2_job)?;
             let response = serde_json::to_string(&V2CronJobResponse::from(&job))?;
-            store_mutex
-                    .lock()
-                    .expect("Failed to acquire lock on storage")
-                    .push(job);
+            store.push(job);
             Ok(Response::new(Body::from(response)))
         },
         // }}}
@@ -189,10 +165,10 @@ async fn request_routes(
 }
 
 async fn handle_request(
-        store_mutex: Arc<Mutex<Store>>,
+        store: Arc<Store>,
         request: Request<Body>
         ) -> Result<Response<Body>, GenericError> {
-    let result = request_routes(store_mutex, request).await;
+    let result = request_routes(store, request).await;
     result.or_else(|err| {
         error!("Error: {}", err);
         Ok(
@@ -214,16 +190,16 @@ pub struct ScheduleM8 {
 impl ScheduleM8 {
     pub fn start(bind: String, db_path: String) -> ScheduleM8 {
         info!("Opening store at location: {}", db_path);
-        let store_mutex = Arc::new(Mutex::new(Store::open(&db_path).expect("Failed to open store")));
-        let scheduler = Scheduler::start(store_mutex.clone());
+        let store = Arc::new(Store::open(&db_path).expect("Failed to open store"));
+        let scheduler = Scheduler::start(store.clone());
 
         let address: SocketAddr = bind.parse().unwrap();
 
         let make_svc = make_service_fn(move |_| {
-            let service_store_mutex = store_mutex.clone();
+            let service_store = store.clone();
             async {
                 Ok::<_, GenericError>(service_fn(move |req| {
-                    handle_request(service_store_mutex.clone(), req)
+                    handle_request(service_store.clone(), req)
                 }))
             }
         });

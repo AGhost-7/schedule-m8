@@ -12,6 +12,8 @@ FROM ubuntu:bionic
 
 COPY --from=build /usr/local/src/schedule-m8/target/release/schedule-m8 /usr/local/bin/schedule-m8
 
-VOLUME /usr/local/schedule-m8/data
+ENV SCHEDULE_M8_DATA_DIR /var/lib/schedule-m8/data
+
+VOLUME /var/lib/schedule-m8/data
 
 CMD ["/usr/local/bin/schedule-m8"]
