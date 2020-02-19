@@ -18,8 +18,8 @@ tokio-timer = '=0.3.0-alpha.6'
 serde_derive = '*'
 serde = '*'
 serde_json = '*'
-cron = '*'
 chrono = '*'
+cron-parser = '*'
 uuid = { version = '*', features = ['serde', 'v4'] }
 
 [dev-dependencies]

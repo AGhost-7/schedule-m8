@@ -4,9 +4,7 @@ use std::cmp::{Ord, Ordering};
 use std::time::{Duration};
 use uuid::Uuid;
 use serde::{Serialize, Deserialize};
-use cron::Schedule;
 use chrono::Utc;
-use std::str::FromStr;
 use std::convert::TryFrom;
 use crate::error::AppError;
 
@@ -76,19 +74,18 @@ impl V1JobKey {
 impl TryFrom<V1CronJob> for Job {
     type Error = AppError;
     fn try_from(v1: V1CronJob) -> Result<Job, AppError> {
-        let schedule = Schedule::from_str(&v1.schedule).map_err(|_|
+        let timestamp = cron_parser::parse(&v1.schedule, &chrono::Utc::now()).map_err(|_| {
             AppError::ValidationError
-        )?;
+        })?;
         let id = v1.group.clone() + "::_" + &v1.name;
-        let timestamp = schedule.upcoming(Utc).next().unwrap().timestamp();
         Ok(
             Job {
                 method: "POST".to_owned(),
-                timestamp: Duration::from_millis(timestamp as u64),
+                timestamp: Duration::from_millis(timestamp.timestamp_millis() as u64),
                 url: v1.url,
                 body: v1.payload,
                 id,
-                schedule: Some(v1.schedule)
+                schedule: None
             }
         )
     }
@@ -183,10 +180,9 @@ impl TryFrom<V2CronJob> for Job {
         hyper::Method::from_bytes(&method.as_bytes())
             .map_err(|_| AppError::ValidationError)?;
 
-        let schedule = Schedule::from_str(&v2.schedule).map_err(|_|
-            AppError::ValidationError
-        )?;
-        let timestamp = schedule.upcoming(Utc).next().unwrap().timestamp();
+        let timestamp = cron_parser::parse(&v2.schedule, &Utc::now())
+            .map_err(|_| AppError::ValidationError)?
+            .timestamp_millis();
         Ok(
             Job {
                 method: method,
@@ -210,4 +206,17 @@ impl <'a> From<&'a Job> for V2CronJobResponse<'a> {
             schedule: &job.schedule.as_ref().unwrap()
         }
     }
+}
+
+#[test]
+fn cron_deserialize() {
+    let body = r#"{
+        "payload": "",
+        "schedule": "0 4 * * *",
+        "group": "something",
+        "name": "something",
+        "url": "http://example.com/callback"
+    }"#;
+    let v1_cron: V1CronJob = serde_json::from_str(body).unwrap();
+    let job: Job = Job::try_from(v1_cron).unwrap();
 }

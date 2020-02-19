@@ -12,7 +12,7 @@ extern crate rmp_serde;
 extern crate hyper;
 extern crate tokio_timer;
 extern crate futures;
-extern crate cron;
+extern crate cron_parser;
 
 use std::net::SocketAddr;
 use std::sync::Arc;

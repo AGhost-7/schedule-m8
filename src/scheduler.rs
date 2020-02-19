@@ -3,8 +3,6 @@ use crate::schema::Job;
 use std::time::Duration;
 use crate::store::Store;
 use std::sync::Arc;
-use std::str::FromStr;
-use cron::Schedule;
 use chrono::Utc;
 
 use futures::channel::oneshot;
@@ -47,12 +45,9 @@ impl Scheduler {
             match next {
                 Some(item) => {
                     if let Some(schedule) = &item.schedule {
-                        let timestamp = Schedule::from_str(schedule)
+                        let timestamp = cron_parser::parse(schedule, &Utc::now())
                             .expect("Invalid schedule")
-                            .upcoming(Utc)
-                            .next()
-                            .expect("Cannot find the next time for schedule")
-                            .timestamp();
+                            .timestamp_millis();
                         let callback = Job {
                             method: item.method.clone(),
                             timestamp: Duration::from_millis(timestamp as u64),
