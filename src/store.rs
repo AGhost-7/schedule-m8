@@ -18,7 +18,7 @@ unsafe impl Send for Store {}
 
 impl Store {
     pub fn open(path: &str) -> Result<Self, sled::Error> {
-        let tree = Db::open(path)?;
+        let tree = sled::open(path)?;
         let mut queue = PriorityQueue::new();
         for serialized in tree.iter().values() {
             let item: Job = rmp_serde::decode::from_slice(

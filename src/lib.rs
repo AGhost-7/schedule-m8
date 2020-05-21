@@ -10,13 +10,14 @@ extern crate priority_queue;
 extern crate rmp_serde;
 
 extern crate hyper;
-extern crate tokio_timer;
 extern crate futures;
+extern crate bytes;
 extern crate cron;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use bytes::buf::BufExt;
 use hyper::{
     body::Body,
     Response,
@@ -28,7 +29,6 @@ use hyper::{
 };
 
 use futures::{
-    stream::TryStreamExt,
     channel::oneshot
 };
 
@@ -61,9 +61,8 @@ async fn request_routes(
         // {{{ v1
         (&Method::POST, ["scheduler", "api", "cron"]) => {
             info!("POST -> /scheduler/api/cron");
-            let body = request.into_body().try_concat().await?;
-            let str_body = String::from_utf8(body.to_vec())?;
-            let v1_job: V1CronJob = serde_json::from_str(&str_body)?;
+            let body = hyper::body::aggregate(request).await?;
+            let v1_job: V1CronJob = serde_json::from_reader(body.reader())?;
             let job = Job::try_from(v1_job)?;
             store.push(job);
             Ok(Response::new(Body::from("{}")))
@@ -75,9 +74,8 @@ async fn request_routes(
         },
         (&Method::POST, ["scheduler", "api"]) => {
             info!("POST -> /scheduler/api");
-            let body = request.into_body().try_concat().await?;
-            let str_body = String::from_utf8(body.to_vec())?;
-            let v1_job: V1Job = serde_json::from_str(&str_body)?;
+            let body = hyper::body::aggregate(request).await?;
+            let v1_job: V1Job = serde_json::from_reader(body.reader())?;
             let job = Job::from(v1_job);
             let key = V1JobKey::new(job.id.clone());
 
@@ -103,9 +101,8 @@ async fn request_routes(
         // {{{ v2
         (&Method::POST, ["api", "job"]) => {
             info!("POST -> /api/job");
-            let body = request.into_body().try_concat().await?;
-            let str_body = String::from_utf8(body.to_vec())?;
-            let v2_job: V1Job = serde_json::from_str(&str_body)?;
+            let body = hyper::body::aggregate(request).await?;
+            let v2_job: V1Job = serde_json::from_reader(body.reader())?;
             let job = Job::from(v2_job);
             let response = serde_json::to_string(&V2JobResponse::from(&job))?;
             store.push(job);
@@ -142,9 +139,8 @@ async fn request_routes(
         },
         (&Method::POST, ["api", "cron"]) => {
             info!("POST -> /api/cron");
-            let body = request.into_body().try_concat().await?;
-            let str_body = String::from_utf8(body.to_vec())?;
-            let v2_job: V2CronJob = serde_json::from_str(&str_body)?;
+            let body = hyper::body::aggregate(request).await?;
+            let v2_job: V2CronJob = serde_json::from_reader(body.reader())?;
             let job = Job::try_from(v2_job)?;
             let response = serde_json::to_string(&V2CronJobResponse::from(&job))?;
             store.push(job);
@@ -208,7 +204,7 @@ impl ScheduleM8 {
         let (close_sender, close_receiver) = oneshot::channel::<()>();
         let (closed_sender, closed_receiver) = oneshot::channel::<()>();
 
-        hyper::rt::spawn(async {
+        tokio::spawn(async {
             server
                 .with_graceful_shutdown(async {
                     close_receiver.await.ok();

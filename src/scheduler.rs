@@ -17,13 +17,13 @@ pub struct Scheduler {
 impl Scheduler {
     pub fn start(store: Arc<Store>) -> Scheduler {
         let (sender, mut receiver) = futures::channel::oneshot::channel::<()>();
-        let mut interval = tokio_timer::Interval::new_interval(Duration::from_millis(500));
+        let mut interval = tokio::time::interval(Duration::from_millis(500));
         let scheduler = Scheduler {
             stop_sender: sender
         };
-        hyper::rt::spawn(async move {
+        tokio::spawn(async move {
             loop {
-                interval.next().await;
+                interval.tick().await;
                 match receiver.try_recv() {
                     Err(_) => panic!("Scheduler shutdown handler cancelled"),
                     Ok(Some(())) => break,
