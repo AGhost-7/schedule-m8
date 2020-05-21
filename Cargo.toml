@@ -1,6 +1,6 @@
 [package]
 name = "schedule-m8"
-version = "0.2.2"
+version = "0.3.1"
 authors = ["'AGhost-7' <'jonathan.boudreau.92@gmail.com'>"]
 edition = "2018"
 
@@ -19,7 +19,7 @@ serde_derive = '*'
 serde = '*'
 serde_json = '*'
 chrono = '*'
-cron-parser = '*'
+cron = '*'
 uuid = { version = '*', features = ['serde', 'v4'] }
 
 [dev-dependencies]

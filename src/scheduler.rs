@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::store::Store;
 use std::sync::Arc;
 use chrono::Utc;
+use std::str::FromStr;
 
 use futures::channel::oneshot;
 
@@ -45,8 +46,11 @@ impl Scheduler {
             match next {
                 Some(item) => {
                     if let Some(schedule) = &item.schedule {
-                        let timestamp = cron_parser::parse(schedule, &Utc::now())
-                            .expect("Invalid schedule")
+                        let timestamp = cron::Schedule::from_str(schedule)
+                            .expect("Failed to parse pattern")
+                            .upcoming(Utc)
+                            .next()
+                            .expect("No next schedule found")
                             .timestamp_millis();
                         let callback = Job {
                             method: item.method.clone(),
