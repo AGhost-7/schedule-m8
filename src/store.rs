@@ -15,12 +15,11 @@ pub struct Store {
 
 // "Db" implements this, and we are using a RwLock to make the queue itself
 // threadsafe. Therefore, "Store" is already threadsafe.
-unsafe impl Sync for Store {}
-unsafe impl Send for Store {}
+//unsafe impl Sync for Store {}
+//unsafe impl Send for Store {}
 
 impl Store {
-    pub fn open(path: &str) -> Result<Self, sled::Error> {
-        let tree = sled::open(path)?;
+    pub fn new(tree: Db) -> Self {
         let mut queue = PriorityQueue::new();
         for serialized in tree.scan_prefix(KEYSPACE_QUEUE).values() {
             let item: Job = rmp_serde::decode::from_slice(
@@ -29,12 +28,10 @@ impl Store {
             let priority = item.timestamp.clone();
             queue.push(item.id.clone(), priority);
         }
-        Ok(
-            Store {
-                queue: Mutex::new(queue),
-                tree: tree
-            }
-        )
+        Store {
+            queue: Mutex::new(queue),
+            tree: tree
+        }
     }
 
     fn db_key(id: &str) -> Box<[u8]> {
@@ -119,7 +116,8 @@ mod test {
 
     #[test]
     fn duplicates() {
-        let store = Store::open(".test/duplicates").expect("Failed to open store");
+        let tree = sled::open(".test/duplicates").expect("Failed to open store");
+        let store = Store::new(tree);
         store.clear();
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
 
@@ -155,7 +153,8 @@ mod test {
 
     #[test]
     fn remove() {
-        let store = Store::open(".test/remove").expect("Failed to open store");
+        let tree = sled::open(".test/remove").expect("Failed to open store");
+        let store = Store::new(tree);
         store.clear();
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let id = Uuid::new_v4().to_string();
@@ -184,7 +183,8 @@ mod test {
     #[test]
     fn resume() {
         {
-            let store = Store::open(".test/resume").expect("Failed to open store");
+            let tree = sled::open(".test/resume").expect("Failed to open store");
+            let store = Store::new(tree);
             store.clear();
             let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
             store.push(Job {
@@ -197,14 +197,16 @@ mod test {
             });
         }
 
-        let store = Store::open(".test/resume").expect("Failed to open store");
+        let tree = sled::open(".test/resume").expect("Failed to open store");
+        let store = Store::new(tree);
         assert_eq!(store.next().unwrap().url, "1");
         assert_eq!(store.next(), None);
     }
 
     #[test]
     fn not_has_next() {
-        let store = Store::open(".test/not_has_next").expect("Failed to open store");
+        let tree = sled::open(".test/not_has_next").expect("Failed to open store");
+        let store = Store::new(tree);
         store.clear();
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
 
@@ -223,7 +225,8 @@ mod test {
 
     #[test]
     fn multi_threaded() {
-        let store = Store::open(".test/multi_threaded").unwrap();
+        let tree = sled::open(".test/multi_threaded").unwrap();
+        let store = Store::new(tree);
         let store_arc = Arc::new(store);
         let clone = Arc::clone(&store_arc);
         let child = thread::spawn(move || {

@@ -15,7 +15,6 @@ use std::time::{UNIX_EPOCH, SystemTime, Duration};
 use std::sync::{Mutex, Arc};
 
 use bytes::buf::BufExt;
-use futures::stream::TryStreamExt;
 use uuid::Uuid;
 
 fn random_port() -> u16 {
@@ -33,7 +32,7 @@ macro_rules! test_case {
             let app = ScheduleM8::start(
                 "0.0.0.0:".to_owned() + &app_port.to_string(),
                 data_dir.clone()
-            );
+            ).await;
             
             let client = Client::new();
 

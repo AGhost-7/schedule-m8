@@ -227,7 +227,7 @@ fn cron_deserialize() {
         "url": "http://example.com/callback"
     }"#;
     let v1_cron: V1CronJob = serde_json::from_str(body).unwrap();
-    let job: Job = Job::try_from(v1_cron).unwrap();
+    let _job: Job = Job::try_from(v1_cron).unwrap();
 }
 
 #[test]
@@ -241,5 +241,5 @@ fn cron_year_deserialize() {
     }"#;
 
     let v1_cron: V1CronJob = serde_json::from_str(body).unwrap();
-    let job = Job::try_from(v1_cron).unwrap();
+    let _job = Job::try_from(v1_cron).unwrap();
 }

@@ -21,7 +21,8 @@ async fn main() {
         .unwrap_or("0.0.0.0:8001".to_owned());
     let db_path = env::var("SCHEDULE_M8_DATA_DIR")
         .unwrap_or(default_dir.to_str().unwrap().to_owned());
-    info!("Listening on {}", bind);
 
-    ScheduleM8::start(bind, db_path).forever().await;
+    let schedule_m8 = ScheduleM8::start(bind.clone(), db_path).await;
+    info!("Listening on {}", bind);
+    schedule_m8.forever().await;
 }
