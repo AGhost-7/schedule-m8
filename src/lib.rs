@@ -36,6 +36,8 @@ use std::convert::TryFrom;
 
 mod error;
 
+mod keyspace;
+
 pub mod schema;
 use crate::schema::*;
 

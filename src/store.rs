@@ -6,6 +6,8 @@ use serde::Serialize;
 use std::time::{UNIX_EPOCH, Duration, SystemTime};
 use std::sync::Mutex;
 
+use crate::keyspace::KEYSPACE_QUEUE;
+
 pub struct Store {
     queue: Mutex<PriorityQueue<String, Duration>>,
     tree: Db
@@ -20,7 +22,7 @@ impl Store {
     pub fn open(path: &str) -> Result<Self, sled::Error> {
         let tree = sled::open(path)?;
         let mut queue = PriorityQueue::new();
-        for serialized in tree.iter().values() {
+        for serialized in tree.scan_prefix(KEYSPACE_QUEUE).values() {
             let item: Job = rmp_serde::decode::from_slice(
                 &serialized.expect("Failed to extract from store")
             ).expect("Failed to deserialize from store");
@@ -33,6 +35,14 @@ impl Store {
                 tree: tree
             }
         )
+    }
+
+    fn db_key(id: &str) -> Box<[u8]> {
+        let bytes = id.as_bytes();
+        let mut key: Vec<u8> = Vec::with_capacity(KEYSPACE_QUEUE.len() + bytes.len());
+        key.extend(KEYSPACE_QUEUE.iter());
+        key.extend(bytes);
+        key.into_boxed_slice()
     }
 
     pub fn next(&self) -> Option<Job> {
@@ -48,7 +58,7 @@ impl Store {
 
         if has_next {
             queue.pop().map(|(uuid, _)| {
-                let bytes = self.tree.remove(&uuid.as_bytes())
+                let bytes = self.tree.remove(Store::db_key(&uuid))
                     .expect("Failed to remove item from tree")
                     .expect("Item in queue does not exist in persistence layer");
 
@@ -65,7 +75,6 @@ impl Store {
 
     pub fn push(&self, item: Job) {
         let priority = item.timestamp.clone();
-        let id_bytes = item.id.as_bytes();
         let mut buffer = Vec::new();
         item
             .serialize(&mut Serializer::new(&mut buffer))
@@ -75,13 +84,13 @@ impl Store {
             .lock()
             .expect("Failed to acquire lock")
             .push(item.id.clone(), priority);
-        self.tree.insert(id_bytes, buffer).unwrap();
+        self.tree.insert(Store::db_key(&item.id), buffer).unwrap();
     }
 
     pub fn remove(&self, id: &str) -> Option<Job> {
         let serialized = self
             .tree
-            .remove(id.as_bytes())
+            .remove(Store::db_key(id))
             .expect("Failed to remove callback from storage");
 
         serialized.map(|data| {
