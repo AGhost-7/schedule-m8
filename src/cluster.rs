@@ -1,20 +1,14 @@
 use crate::store::Store;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use crate::shard::Shard;
 use crate::schema::Job;
 use crate::error::AppError;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::*;
-
-// TODO: DRY this up
+use tokio::sync::RwLock;
 
 pub struct Cluster {
     shards: RwLock<Vec<Shard>>
-}
-
-struct Push(Shard);
-
-impl Future for Push {
 }
 
 impl Cluster {
@@ -30,34 +24,29 @@ impl Cluster {
         }
     }
 
-    fn is_send<T: Send> (fut: T) -> T { fut }
-
-    pub async fn push(&self, job: Job) -> Result<(), AppError> {
-        let shards = Arc::new(self.shards.read().expect("Failed to acquire shard lock."));
-        let id = &job.id;
+    fn shard<'a>(shards: &'a Vec<Shard>, id: &str) -> &'a Shard {
         let mut hasher = DefaultHasher::new();
         (*id).hash(&mut hasher);
         let hash = hasher.finish();
-        let index = hash % shards.len() as u64;
-        let shard = Arc::new(shards.get(index as usize).expect("Could not find shard at given id"));
-        use futures::future::FutureExt;
-        Cluster::is_send(shard.push(job).map(move |result| {
-            result
-        }).await)
+        let index = (hash % shards.len() as u64) as usize;
+        shards.get(index).expect("Could not find shard at given id")
+    }
+
+    pub async fn push(&self, job: Job) -> Result<(), AppError> {
+        let shards = self.shards.read().await;
+        let shard = Cluster::shard(&shards, &job.id);
+
+        shard.push(job).await
     }
 
     pub async fn remove(&self, id: &str) -> Result<Option<Job>, AppError> {
-        let shards = self.shards.read().expect("Failed to acquire shard lock.");
-        let mut hasher = DefaultHasher::new();
-        (*id).hash(&mut hasher);
-        let hash = hasher.finish();
-        let index = hash % shards.len() as u64;
-        let shard = shards.get(index as usize).expect("Could not find hard at given id");
+        let shards = self.shards.read().await;
+        let shard = Cluster::shard(&shards, id);
         shard.remove(id).await
     }
 
     pub async fn clear(&self) -> Result<(), AppError> {
-        for shard in self.shards.read().expect("Failed to acquire shard lock").iter() {
+        for shard in self.shards.read().await.iter() {
             shard.clear().await?;
         }
         Ok(())

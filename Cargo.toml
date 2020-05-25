@@ -7,20 +7,29 @@ edition = "2018"
 [dependencies]
 log = '*'
 env_logger = '*'
+
 sled = '*'
 priority-queue = '*'
-rmp-serde = '*'
+
 hyper = { version = '0.13', features = ['runtime'] }
 bytes = '*'
-futures = { version = "0.3", features = ["compat"] }
 
+futures = { version = "0.3", features = ["compat"] }
 tokio = { version = '0.2.21', features = ['time', 'fs', 'macros', 'test-util'] }
+
 serde_derive = '*'
 serde = '*'
 serde_json = '*'
+rmp-serde = '*'
+tonic = '*'
+prost = '*'
+
 chrono = '*'
 cron = '*'
 uuid = { version = '*', features = ['serde', 'v4'] }
+
+[build-dependencies]
+tonic-build = { version = '*', features = ['prost'] }
 
 [dev-dependencies]
 rand = '*'

@@ -3,11 +3,12 @@ extern crate log;
 extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
+extern crate rmp_serde;
+extern crate tonic;
 extern crate uuid;
 
 extern crate sled;
 extern crate priority_queue;
-extern crate rmp_serde;
 
 extern crate hyper;
 extern crate futures;
@@ -41,6 +42,7 @@ use crate::api::handle_request;
 
 mod shard;
 mod cluster;
+mod node;
 use crate::cluster::Cluster;
 
 pub struct ScheduleM8 {
@@ -79,7 +81,7 @@ impl ScheduleM8 {
                 .with_graceful_shutdown(async {
                     close_receiver.await.ok();
                 })
-            .await
+                .await
                 .unwrap();
             closed_sender.send(()).unwrap();
         });

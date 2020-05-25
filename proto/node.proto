@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package node;
+
+service Node {
+	rpc Push(Job) returns (PushResponse) {}
+	rpc Remove(Id) returns (RemoveResponse) {}
+	rpc Clear(Empty) returns (ClearResponse) {}
+}
+
+message PushResponse {
+	oneof result {
+		Empty ok = 1;
+		AppError err = 2;
+	}
+}
+
+message RemoveResponse {
+	oneof result {
+		Job ok = 1;
+		AppError err = 2;
+	}
+}
+
+message ClearResponse {
+	oneof result {
+		Empty ok = 1;
+		AppError err = 2;
+	}
+}
+
+message AppError {
+	int32 code = 1;
+	string message = 2;
+}
+
+message Id {
+	string id = 1;
+}
+
+message Job {
+	uint64 timestamp = 1;
+	enum Method {
+		GET = 0;
+		HEAD = 1;
+		POST = 2;
+		PUT = 3;
+		DELETE = 4;
+		CONNECT = 5;
+		OPTIONS = 6;
+		TRACE = 7;
+		PATCH = 8;
+	}
+	Method method = 2;
+	string url = 3;
+	string id = 4;
+	string body = 5;
+	bool has_schedule = 6;
+	string schedule = 7;
+}
+
+message Empty {}
