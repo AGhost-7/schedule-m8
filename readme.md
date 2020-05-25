@@ -1,12 +1,6 @@
 # Schedule-m8
 gr8 scheduling m8.
 
-## Motivation
-I wanted a mock of quartz-http, primary motivation being that for
-local development the microservice takes too much memory. I also
-noticed that it is very slow to start up and shut down. This replaces
-the http service with something that makes more sense for developing.
-
 ## Usage (docker)
 Here's an example drop-in replacement for quartz-http:
 ```

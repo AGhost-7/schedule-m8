@@ -10,17 +10,17 @@ pub enum Shard {
 }
 
 impl Shard {
-    pub fn push(&self, job: Job) -> Result<(), AppError> {
+    pub async fn push(&self, job: Job) -> Result<(), AppError> {
         match self {
             Shard::Local(store) => Ok(store.push(job))
         }
     }
-    pub fn remove(&self, id: &str) -> Result<Option<Job>, AppError> {
+    pub async fn remove(&self, id: &str) -> Result<Option<Job>, AppError> {
         match self {
             Shard::Local(store) => Ok(store.remove(id))
         }
     }
-    pub fn clear(&self) -> Result<(), AppError> {
+    pub async fn clear(&self) -> Result<(), AppError> {
         match self {
             Shard::Local(store) => Ok(store.clear())
         }

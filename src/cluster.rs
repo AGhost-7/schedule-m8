@@ -12,6 +12,11 @@ pub struct Cluster {
     shards: RwLock<Vec<Shard>>
 }
 
+struct Push(Shard);
+
+impl Future for Push {
+}
+
 impl Cluster {
     pub async fn start(store: Arc<Store>) -> Cluster {
         let mut shards: Vec<Shard> = Vec::with_capacity(128);
@@ -25,30 +30,35 @@ impl Cluster {
         }
     }
 
-    pub fn push(&self, job: Job) -> Result<(), AppError> {
-        let shards = self.shards.read().expect("Failed to acquire shard lock.");
+    fn is_send<T: Send> (fut: T) -> T { fut }
+
+    pub async fn push(&self, job: Job) -> Result<(), AppError> {
+        let shards = Arc::new(self.shards.read().expect("Failed to acquire shard lock."));
         let id = &job.id;
         let mut hasher = DefaultHasher::new();
         (*id).hash(&mut hasher);
         let hash = hasher.finish();
         let index = hash % shards.len() as u64;
-        let shard = shards.get(index as usize).expect("Could not find shard at given id");
-        shard.push(job)
+        let shard = Arc::new(shards.get(index as usize).expect("Could not find shard at given id"));
+        use futures::future::FutureExt;
+        Cluster::is_send(shard.push(job).map(move |result| {
+            result
+        }).await)
     }
 
-    pub fn remove(&self, id: &str) -> Result<Option<Job>, AppError> {
+    pub async fn remove(&self, id: &str) -> Result<Option<Job>, AppError> {
         let shards = self.shards.read().expect("Failed to acquire shard lock.");
         let mut hasher = DefaultHasher::new();
         (*id).hash(&mut hasher);
         let hash = hasher.finish();
         let index = hash % shards.len() as u64;
         let shard = shards.get(index as usize).expect("Could not find hard at given id");
-        shard.remove(id)
+        shard.remove(id).await
     }
 
-    pub fn clear(&self) -> Result<(), AppError> {
+    pub async fn clear(&self) -> Result<(), AppError> {
         for shard in self.shards.read().expect("Failed to acquire shard lock").iter() {
-            shard.clear()?;
+            shard.clear().await?;
         }
         Ok(())
     }
