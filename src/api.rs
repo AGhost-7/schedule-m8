@@ -132,7 +132,11 @@ pub async fn handle_request(
             AppError::ValidationError => StatusCode::BAD_REQUEST,
             AppError::UnexpectedError => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::NodeUnreachable => StatusCode::SERVICE_UNAVAILABLE,
-            AppError::InvalidNodeResponse => StatusCode::INTERNAL_SERVER_ERROR
+            AppError::RpcDeserializationError => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::UnexpectedRpcError(message) => {
+                error!("RpcError - {}", message);
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
         };
         Ok(
             Response::builder()

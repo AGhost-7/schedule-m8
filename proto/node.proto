@@ -3,30 +3,13 @@ syntax = "proto3";
 package node;
 
 service Node {
-	rpc Push(Job) returns (PushResponse) {}
+	rpc Push(Job) returns (Job) {}
 	rpc Remove(Id) returns (RemoveResponse) {}
-	rpc Clear(Empty) returns (ClearResponse) {}
-}
-
-message PushResponse {
-	oneof result {
-		Empty ok = 1;
-		AppError err = 2;
-	}
+	rpc Clear(Empty) returns (Empty) {}
 }
 
 message RemoveResponse {
-	oneof result {
-		Job ok = 1;
-		AppError err = 2;
-	}
-}
-
-message ClearResponse {
-	oneof result {
-		Empty ok = 1;
-		AppError err = 2;
-	}
+	Job job = 1;
 }
 
 message AppError {

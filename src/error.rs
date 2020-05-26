@@ -7,33 +7,36 @@ use serde_json::Error as SerdeError;
 
 #[derive(Debug)]
 pub enum AppError {
-    ValidationError = 1,
-    UnexpectedError = 2,
-    NodeUnreachable = 3,
-    InvalidNodeResponse = 4
+    ValidationError,
+    // this is likely a bug...
+    UnexpectedError,
+    // internal shard rpc calls failed
+    NodeUnreachable,
+    RpcDeserializationError,
+    // fallback error if unable to parse the grpc status
+    UnexpectedRpcError(String)
 }
 
 impl Display for AppError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
-        match *self {
+        match &*self {
             AppError::ValidationError => write!(formatter, "ValidationError"),
             AppError::UnexpectedError => write!(formatter, "UnexpectedError"),
             AppError::NodeUnreachable => write!(formatter, "NodeUnreachable"),
-            AppError::InvalidNodeResponse => write!(formatter, "InvalidNodeResponse")
+            AppError::RpcDeserializationError => write!(formatter, "RpcDeserializationError"),
+            AppError::UnexpectedRpcError(message) => write!(formatter, "UnexpectedRpcError - {}", message)
         }
     }
 }
 
 impl Error for AppError {
     fn description(&self) -> &str {
-        match *self {
+        match &*self {
             AppError::ValidationError => "ValidationError",
             AppError::UnexpectedError => "UnexpectedError",
-            // internal shard rpc calls failed
             AppError::NodeUnreachable => "NodeUnreachable",
-            // this means the other shards are responding, but most likely
-            // a deserialization error occurred
-            AppError::InvalidNodeResponse => "InvalidNodeResponse"
+            AppError::RpcDeserializationError => "RpcDeserializationError",
+            AppError::UnexpectedRpcError(_) => "UnexpectedRpcError"
         }
     }
 }

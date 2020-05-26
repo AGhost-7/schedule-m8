@@ -2,7 +2,7 @@
 gr8 scheduling m8.
 
 ## Usage (docker)
-Here's an example drop-in replacement for quartz-http:
+Here's how to get started quickly with docker:
 ```
 docker run --rm -p 8090:8090 -e SCHEDULE_M8_BIND_ADDR='0.0.0.0:8090' aghost7/schedule-m8
 ```

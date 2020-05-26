@@ -3,11 +3,12 @@ use std::net::SocketAddr;
 use crate::cluster::Cluster;
 use tonic::{Request, Response, Status};
 use tonic::transport::Server;
-//use tokio::sync::oneshot;
 use futures::channel::oneshot;
 
 use super::grpc::node_server::{Node, NodeServer as GrpcNodeServer};
 use super::grpc;
+use crate::schema::Job;
+use super::convert::*;
 
 pub struct NodeService {
     cluster: Arc<Cluster>
@@ -15,15 +16,19 @@ pub struct NodeService {
 
 #[tonic::async_trait]
 impl Node for NodeService {
-    async fn push(&self, request: Request<grpc::Job>) -> Result<Response<grpc::PushResponse>, Status> {
-        unimplemented!();
+    async fn push(&self, request: Request<grpc::Job>) -> Result<Response<grpc::Job>, Status> {
+        let job = Job::try_from(request.into_inner())?;
+        self.cluster.push(job.clone()).await?;
+        Ok(Response::new(grpc::Job::from(job)))
     }
 
     async fn remove(&self, request: Request<grpc::Id>) -> Result<Response<grpc::RemoveResponse>, Status> {
-        unimplemented!();
+        let id = request.into_inner().id;
+        let job = self.cluster.remove(&id).await?.map(grpc::Job::from);
+        Ok(Response::new(grpc::RemoveResponse{ job: job }))
     }
 
-    async fn clear(&self, request: Request<grpc::Empty>) -> Result<Response<grpc::ClearResponse>, Status> {
+    async fn clear(&self, request: Request<grpc::Empty>) -> Result<Response<grpc::Empty>, Status> {
         unimplemented!();
     }
 }

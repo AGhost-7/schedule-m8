@@ -13,11 +13,6 @@ pub struct Store {
     tree: Db
 }
 
-// "Db" implements this, and we are using a RwLock to make the queue itself
-// threadsafe. Therefore, "Store" is already threadsafe.
-//unsafe impl Sync for Store {}
-//unsafe impl Send for Store {}
-
 impl Store {
     pub fn new(tree: Db) -> Self {
         let mut queue = PriorityQueue::new();
