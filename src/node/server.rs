@@ -4,6 +4,8 @@ use crate::cluster::Cluster;
 use tonic::{Request, Response, Status};
 use tonic::transport::Server;
 use futures::channel::oneshot;
+use tokio::time::interval;
+use std::time::Duration;
 
 use super::grpc::node_server::{Node, NodeServer as GrpcNodeServer};
 use super::grpc;
@@ -28,8 +30,9 @@ impl Node for NodeService {
         Ok(Response::new(grpc::RemoveResponse{ job: job }))
     }
 
-    async fn clear(&self, request: Request<grpc::Empty>) -> Result<Response<grpc::Empty>, Status> {
-        unimplemented!();
+    async fn clear(&self, _request: Request<grpc::Empty>) -> Result<Response<grpc::Empty>, Status> {
+        self.cluster.clear().await?;
+        Ok(Response::new(grpc::Empty { }))
     }
 }
 
@@ -46,17 +49,21 @@ impl NodeServer {
         let (close_sender, close_receiver) = oneshot::channel::<()>();
         let (closed_sender, closed_receiver) = oneshot::channel::<()>();
 
+        let close_future = async {
+            close_receiver.await.unwrap();
+        };
+        let serve = Server::builder()
+            .add_service(GrpcNodeServer::new(service))
+            .serve_with_shutdown(addr, close_future);
+
         tokio::spawn(async move {
-            let close_future = async {
-                close_receiver.await.unwrap();
-            };
-            Server::builder()
-                .add_service(GrpcNodeServer::new(service))
-                .serve_with_shutdown(addr, close_future)
-                .await
-                .unwrap();
+            serve.await.unwrap();
             closed_sender.send(()).unwrap();
         });
+
+        // for some reason, this is the only way to make sure when the `start`
+        // future completes that the server is listening on the port...
+        interval(Duration::from_millis(100)).tick().await;
 
         NodeServer {
             close_sender,

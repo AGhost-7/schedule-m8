@@ -51,6 +51,11 @@ impl NodeClient {
     }
 
     pub async fn clear(&self) -> Result<(), AppError> {
-        unimplemented!();
+        let mut rpc_client = self.rpc_client.clone();
+        rpc_client
+            .clear(grpc:: Empty { })
+            .await
+            .map_err(AppError::from)?;
+        Ok(())
     }
 }
